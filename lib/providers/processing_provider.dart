@@ -10,11 +10,17 @@ final geminiServiceProvider = Provider<GeminiService>((ref) => GeminiService());
 final nanoBananaServiceProvider =
     Provider<NanoBananaService>((ref) => NanoBananaService());
 
-// Template image bytes provider
+// Template image bytes provider (using SILK Template.png with transparency)
 final templateImageProvider = FutureProvider<Uint8List>((ref) async {
-  final data = await rootBundle.load('assets/images/Neutral grey SILK.jpg');
+  final data = await rootBundle.load('assets/images/SILK Template.png');
   return data.buffer.asUint8List();
 });
+
+// Background mode enum
+enum BackgroundMode { white, transparent }
+
+// Background mode state provider
+final backgroundModeProvider = StateProvider<BackgroundMode>((ref) => BackgroundMode.white);
 
 // Processing state for individual images
 final imageProcessingStateProvider =
@@ -303,17 +309,13 @@ final adjustedImageBytesProvider =
     FutureProvider.family<Uint8List?, String>((ref, groupId) async {
   final colorizedImages = ref.watch(colorizedImagesByGroupProvider(groupId));
   final adjustments = ref.watch(groupAdjustmentsProvider(groupId));
+  final backgroundMode = ref.watch(backgroundModeProvider);
 
   if (colorizedImages.isEmpty) return null;
 
   final colorizedImage = colorizedImages.first;
 
-  // If no adjustments, return original bytes
-  if (!adjustments.hasAdjustments) {
-    return colorizedImage.bytes;
-  }
-
-  // Apply adjustments
+  // Always apply adjustments (to handle background mode changes)
   final nanoBananaService = ref.read(nanoBananaServiceProvider);
   return nanoBananaService.applyAdjustments(
     baseColorizedBytes: colorizedImage.baseColorizedBytes,
@@ -321,5 +323,6 @@ final adjustedImageBytesProvider =
     saturation: adjustments.saturation,
     brightness: adjustments.brightness,
     sharpness: adjustments.sharpness,
+    useWhiteBackground: backgroundMode == BackgroundMode.white,
   );
 });

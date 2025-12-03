@@ -389,6 +389,7 @@ class _ResultWithSliders extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final adjustments = ref.watch(groupAdjustmentsProvider(groupId));
     final adjustedImageAsync = ref.watch(adjustedImageBytesProvider(groupId));
+    final backgroundMode = ref.watch(backgroundModeProvider);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -466,6 +467,57 @@ class _ResultWithSliders extends ConsumerWidget {
                 onChanged: (v) => ref.read(imageAdjustmentsProvider.notifier).updateSharpness(groupId, v),
               ),
               const SizedBox(height: 24),
+              // Background toggle
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Background',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      if (backgroundMode == BackgroundMode.transparent)
+                        Text(
+                          'PNG export only',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.orange.shade700,
+                          ),
+                        ),
+                    ],
+                  ),
+                  SegmentedButton<BackgroundMode>(
+                    segments: const [
+                      ButtonSegment(
+                        value: BackgroundMode.white,
+                        label: Text('White'),
+                        icon: Icon(Icons.square, size: 16),
+                      ),
+                      ButtonSegment(
+                        value: BackgroundMode.transparent,
+                        label: Text('None'),
+                        icon: Icon(Icons.square_outlined, size: 16),
+                      ),
+                    ],
+                    selected: {backgroundMode},
+                    onSelectionChanged: (Set<BackgroundMode> selection) {
+                      ref.read(backgroundModeProvider.notifier).state = selection.first;
+                    },
+                    style: ButtonStyle(
+                      visualDensity: VisualDensity.compact,
+                      textStyle: WidgetStateProperty.all(
+                        const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
               // Reset button
               TextButton.icon(
                 onPressed: () => ref.read(imageAdjustmentsProvider.notifier).reset(groupId),

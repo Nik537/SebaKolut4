@@ -24,6 +24,7 @@ class NanoBananaService {
     required String hexColor,
     required String sourceImageId,
     required String groupId,
+    bool useWhiteBackground = true,
   }) async {
     if (!_isInitialized) {
       await initialize();
@@ -32,23 +33,28 @@ class NanoBananaService {
     // Parse hex color
     final color = _parseHexColor(hexColor);
 
-    // Decode the template image
-    final image = img.decodeImage(templateImageBytes);
-    if (image == null) {
+    // Decode the template image (SILK Template.png with transparency)
+    final templateImage = img.decodeImage(templateImageBytes);
+    if (templateImage == null) {
       throw ColorizationException('Failed to decode template image');
     }
 
-    // Apply colorization to the entire image
-    final colorizedImage = _applyColorTint(image, color);
+    // Apply colorization to the template (preserving alpha)
+    final colorizedTemplate = _applyColorTint(templateImage, color);
 
-    // Store base colorized bytes BEFORE carton overlay (for adjustments later)
-    final baseColorizedBytes = Uint8List.fromList(img.encodePng(colorizedImage));
+    // Store base colorized bytes BEFORE background/carton (for adjustments later)
+    final baseColorizedBytes = Uint8List.fromList(img.encodePng(colorizedTemplate));
 
-    // Overlay the carton image on top
-    final finalImage = _overlayCarton(colorizedImage);
+    // Composite 3 layers: background + colorized template + carton
+    final finalImage = _composite3Layers(colorizedTemplate, useWhiteBackground);
 
-    // Encode back to JPEG
-    final outputBytes = Uint8List.fromList(img.encodeJpg(finalImage, quality: 95));
+    // Encode based on background mode
+    final Uint8List outputBytes;
+    if (useWhiteBackground) {
+      outputBytes = Uint8List.fromList(img.encodeJpg(finalImage, quality: 95));
+    } else {
+      outputBytes = Uint8List.fromList(img.encodePng(finalImage));
+    }
 
     return ColorizedImage(
       id: _uuid.v4(),
@@ -61,50 +67,55 @@ class NanoBananaService {
     );
   }
 
-  /// Apply adjustments to the base colorized image (without carton),
-  /// then overlay the carton on top.
+  /// Apply adjustments to the base colorized image (without carton/background),
+  /// then composite 3 layers: background + adjusted template + carton.
   Future<Uint8List> applyAdjustments({
     required Uint8List baseColorizedBytes,
     required double hue,        // -1.0 to 1.0 (0 = no change)
     required double saturation, // -1.0 to 1.0 (0 = no change)
     required double brightness, // -1.0 to 1.0 (0 = no change)
     required double sharpness,  // 0.0 to 1.0 (0 = no change)
+    bool useWhiteBackground = true,
   }) async {
     if (!_isInitialized) {
       await initialize();
     }
 
-    // Decode base colorized image
+    // Decode base colorized image (with alpha preserved)
     var image = img.decodeImage(baseColorizedBytes);
     if (image == null) {
       throw ColorizationException('Failed to decode base colorized image');
     }
 
-    // Apply hue adjustment
+    // Apply hue adjustment (preserving alpha)
     if (hue != 0) {
       image = _adjustHue(image, hue);
     }
 
-    // Apply saturation adjustment
+    // Apply saturation adjustment (preserving alpha)
     if (saturation != 0) {
       image = _adjustSaturation(image, saturation);
     }
 
-    // Apply brightness adjustment
+    // Apply brightness adjustment (preserving alpha)
     if (brightness != 0) {
       image = _adjustBrightness(image, brightness);
     }
 
-    // Apply sharpness adjustment
+    // Apply sharpness adjustment (preserving alpha)
     if (sharpness > 0) {
       image = _adjustSharpness(image, sharpness);
     }
 
-    // Overlay carton on top of adjusted image
-    final finalImage = _overlayCarton(image);
+    // Composite 3 layers: background + adjusted template + carton
+    final finalImage = _composite3Layers(image, useWhiteBackground);
 
-    // Encode back to JPEG
-    return Uint8List.fromList(img.encodeJpg(finalImage, quality: 95));
+    // Encode based on background mode
+    if (useWhiteBackground) {
+      return Uint8List.fromList(img.encodeJpg(finalImage, quality: 95));
+    } else {
+      return Uint8List.fromList(img.encodePng(finalImage));
+    }
   }
 
   img.Image _adjustHue(img.Image source, double hueShift) {
@@ -299,11 +310,14 @@ class NanoBananaService {
     for (int y = 0; y < result.height; y++) {
       for (int x = 0; x < result.width; x++) {
         final pixel = result.getPixel(x, y);
+        final a = pixel.a.toInt();
+
+        // Skip fully transparent pixels (preserve transparency)
+        if (a == 0) continue;
 
         final r = pixel.r.toInt();
         final g = pixel.g.toInt();
         final b = pixel.b.toInt();
-        final a = pixel.a.toInt();
 
         // Calculate luminance of original pixel (grayscale value)
         final luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
@@ -324,6 +338,7 @@ class NanoBananaService {
           newB = (255 - (2 * (1 - luminance) * (255 - tintB))).round().clamp(0, 255);
         }
 
+        // Preserve original alpha
         result.setPixel(x, y, img.ColorRgba8(newR, newG, newB, a));
       }
     }
@@ -331,48 +346,78 @@ class NanoBananaService {
     return result;
   }
 
-  img.Image _overlayCarton(img.Image baseImage) {
-    if (_cartonImageBytes == null) {
-      return baseImage;
+  /// Composite 3 layers: background (white or transparent) + colorized template + carton
+  img.Image _composite3Layers(img.Image colorizedTemplate, bool useWhiteBackground) {
+    final width = colorizedTemplate.width;
+    final height = colorizedTemplate.height;
+
+    // Layer 1: Create background
+    final result = img.Image(width: width, height: height);
+    if (useWhiteBackground) {
+      // Fill with white
+      result.clear(img.ColorRgba8(255, 255, 255, 255));
+    } else {
+      // Fill with transparent
+      result.clear(img.ColorRgba8(0, 0, 0, 0));
     }
 
-    // Decode carton image (PNG with transparency)
-    final cartonImage = img.decodeImage(_cartonImageBytes!);
-    if (cartonImage == null) {
-      return baseImage;
-    }
+    // Layer 2: Composite colorized template on top of background (alpha blend)
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        final templatePixel = colorizedTemplate.getPixel(x, y);
+        final templateAlpha = templatePixel.a.toInt();
 
-    // Resize carton to match base image if needed
-    img.Image carton = cartonImage;
-    if (carton.width != baseImage.width || carton.height != baseImage.height) {
-      carton = img.copyResize(
-        carton,
-        width: baseImage.width,
-        height: baseImage.height,
-        interpolation: img.Interpolation.cubic,
-      );
-    }
-
-    // Composite carton on top of base image using alpha blending
-    final result = img.Image.from(baseImage);
-
-    for (int y = 0; y < result.height; y++) {
-      for (int x = 0; x < result.width; x++) {
-        final cartonPixel = carton.getPixel(x, y);
-        final cartonAlpha = cartonPixel.a.toInt();
-
-        if (cartonAlpha > 0) {
+        if (templateAlpha > 0) {
           final basePixel = result.getPixel(x, y);
-
-          // Alpha blending
-          final alpha = cartonAlpha / 255.0;
+          final alpha = templateAlpha / 255.0;
           final invAlpha = 1.0 - alpha;
 
-          final newR = (cartonPixel.r.toInt() * alpha + basePixel.r.toInt() * invAlpha).round().clamp(0, 255);
-          final newG = (cartonPixel.g.toInt() * alpha + basePixel.g.toInt() * invAlpha).round().clamp(0, 255);
-          final newB = (cartonPixel.b.toInt() * alpha + basePixel.b.toInt() * invAlpha).round().clamp(0, 255);
+          final newR = (templatePixel.r.toInt() * alpha + basePixel.r.toInt() * invAlpha).round().clamp(0, 255);
+          final newG = (templatePixel.g.toInt() * alpha + basePixel.g.toInt() * invAlpha).round().clamp(0, 255);
+          final newB = (templatePixel.b.toInt() * alpha + basePixel.b.toInt() * invAlpha).round().clamp(0, 255);
 
-          result.setPixel(x, y, img.ColorRgba8(newR, newG, newB, 255));
+          // Preserve alpha for transparent background mode
+          final newA = useWhiteBackground ? 255 : (basePixel.a.toInt() + templateAlpha * (255 - basePixel.a.toInt()) ~/ 255).clamp(0, 255);
+
+          result.setPixel(x, y, img.ColorRgba8(newR, newG, newB, newA));
+        }
+      }
+    }
+
+    // Layer 3: Composite carton on top
+    if (_cartonImageBytes != null) {
+      final cartonImage = img.decodeImage(_cartonImageBytes!);
+      if (cartonImage != null) {
+        img.Image carton = cartonImage;
+        if (carton.width != width || carton.height != height) {
+          carton = img.copyResize(
+            carton,
+            width: width,
+            height: height,
+            interpolation: img.Interpolation.cubic,
+          );
+        }
+
+        for (int y = 0; y < height; y++) {
+          for (int x = 0; x < width; x++) {
+            final cartonPixel = carton.getPixel(x, y);
+            final cartonAlpha = cartonPixel.a.toInt();
+
+            if (cartonAlpha > 0) {
+              final basePixel = result.getPixel(x, y);
+              final alpha = cartonAlpha / 255.0;
+              final invAlpha = 1.0 - alpha;
+
+              final newR = (cartonPixel.r.toInt() * alpha + basePixel.r.toInt() * invAlpha).round().clamp(0, 255);
+              final newG = (cartonPixel.g.toInt() * alpha + basePixel.g.toInt() * invAlpha).round().clamp(0, 255);
+              final newB = (cartonPixel.b.toInt() * alpha + basePixel.b.toInt() * invAlpha).round().clamp(0, 255);
+
+              // Preserve alpha for transparent background mode
+              final newA = useWhiteBackground ? 255 : (basePixel.a.toInt() + cartonAlpha * (255 - basePixel.a.toInt()) ~/ 255).clamp(0, 255);
+
+              result.setPixel(x, y, img.ColorRgba8(newR, newG, newB, newA));
+            }
+          }
         }
       }
     }
