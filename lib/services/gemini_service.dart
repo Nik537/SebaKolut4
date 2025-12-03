@@ -17,7 +17,7 @@ class GeminiService {
     }
 
     _model = GenerativeModel(
-      model: 'gemini-1.5-flash',
+      model: 'gemini-3-pro-preview',
       apiKey: apiKey,
     );
     _isInitialized = true;

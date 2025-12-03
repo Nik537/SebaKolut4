@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/providers.dart';
 import '../services/export_service.dart';
+import '../widgets/log_viewer.dart';
 
 class ExportScreen extends ConsumerStatefulWidget {
   const ExportScreen({super.key});
@@ -51,6 +52,9 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
       appBar: AppBar(
         title: const Text('Export Images'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        actions: const [
+          LogViewerButton(),
+        ],
       ),
       body: Row(
         children: [

@@ -4,6 +4,7 @@ import '../models/models.dart';
 import '../services/services.dart';
 import 'images_provider.dart';
 import 'groups_provider.dart';
+import 'log_provider.dart';
 
 final geminiServiceProvider = Provider<GeminiService>((ref) => GeminiService());
 final nanoBananaServiceProvider =
@@ -81,25 +82,44 @@ class ProcessingController {
 
   ProcessingController(this._ref);
 
+  LogNotifier get _log => _ref.read(logProvider.notifier);
+
   Future<void> processAllGroups() async {
     final groups = _ref.read(groupsProvider);
     final images = _ref.read(importedImagesProvider);
-    final templateBytes = await _ref.read(templateImageProvider.future);
-    final geminiService = _ref.read(geminiServiceProvider);
-    final nanoBananaService = _ref.read(nanoBananaServiceProvider);
 
-    // Initialize services
-    geminiService.initialize();
-    nanoBananaService.initialize();
+    _log.info('Starting processing for ${groups.length} groups');
 
-    for (final group in groups) {
-      await _processGroup(
-        group: group,
-        images: images,
-        templateBytes: templateBytes,
-        geminiService: geminiService,
-        nanoBananaService: nanoBananaService,
-      );
+    try {
+      final templateBytes = await _ref.read(templateImageProvider.future);
+      _log.info('Template image loaded (${templateBytes.length} bytes)');
+
+      final geminiService = _ref.read(geminiServiceProvider);
+      final nanoBananaService = _ref.read(nanoBananaServiceProvider);
+
+      // Initialize services
+      _log.info('Initializing Gemini service...');
+      geminiService.initialize();
+      _log.success('Gemini service initialized');
+
+      _log.info('Initializing Nano Banana service...');
+      nanoBananaService.initialize();
+      _log.success('Nano Banana service initialized');
+
+      for (final group in groups) {
+        _log.info('Processing group: ${group.name} (${group.imageIds.length} images)');
+        await _processGroup(
+          group: group,
+          images: images,
+          templateBytes: templateBytes,
+          geminiService: geminiService,
+          nanoBananaService: nanoBananaService,
+        );
+      }
+
+      _log.success('All groups processed successfully!');
+    } catch (e, stack) {
+      _log.error('Failed to process groups', details: '$e\n\nStack trace:\n$stack');
     }
   }
 
@@ -132,11 +152,16 @@ class ProcessingController {
     final processingNotifier = _ref.read(imageProcessingStateProvider.notifier);
     final colorizedNotifier = _ref.read(colorizedImagesProvider.notifier);
 
+    _log.info('Processing image: ${image.filename}');
+
     try {
       // Step 1: Extract color
       processingNotifier.setStatus(image.id, ProcessingStatus.extractingColor);
+      _log.info('Extracting color from ${image.filename}...');
 
       final colorResult = await geminiService.extractColor(image.bytes);
+      _log.success('Color extracted: ${colorResult.hexColor}',
+          details: 'Raw response: ${colorResult.rawResponse}');
 
       processingNotifier.setStatus(
         image.id,
@@ -146,6 +171,7 @@ class ProcessingController {
 
       // Step 2: Colorize template
       processingNotifier.setStatus(image.id, ProcessingStatus.colorizing);
+      _log.info('Colorizing template with ${colorResult.hexColor}...');
 
       final colorizedImage = await nanoBananaService.colorizeTemplate(
         templateImageBytes: templateBytes,
@@ -154,13 +180,21 @@ class ProcessingController {
         groupId: groupId,
       );
 
+      _log.success('Template colorized successfully (${colorizedImage.bytes.length} bytes)');
+
       colorizedNotifier.addColorizedImage(colorizedImage);
       processingNotifier.setStatus(image.id, ProcessingStatus.completed);
-    } catch (e) {
+
+      _log.success('Image ${image.filename} completed!');
+    } catch (e, stack) {
+      final errorMsg = e.toString();
+      _log.error('Failed to process ${image.filename}',
+          details: '$errorMsg\n\nStack trace:\n$stack');
+
       processingNotifier.setStatus(
         image.id,
         ProcessingStatus.error,
-        errorMessage: e.toString(),
+        errorMessage: errorMsg,
       );
     }
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/providers.dart';
 import '../models/models.dart';
+import '../widgets/log_viewer.dart';
 import 'processing_screen.dart';
 
 class GroupingScreen extends ConsumerWidget {
@@ -18,6 +19,9 @@ class GroupingScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Create Groups'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        actions: const [
+          LogViewerButton(),
+        ],
       ),
       body: Row(
         children: [

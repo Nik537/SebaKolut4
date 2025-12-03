@@ -9,14 +9,26 @@ import '../models/colorized_image.dart';
 enum ExportFormat { png, jpeg, webp }
 
 class ExportService {
+  static const int exportSize = 1080;
+
   Future<Uint8List> convertImage({
     required Uint8List imageBytes,
     required ExportFormat format,
     int quality = 90,
   }) async {
-    final image = img.decodeImage(imageBytes);
+    var image = img.decodeImage(imageBytes);
     if (image == null) {
       throw ExportException('Failed to decode image');
+    }
+
+    // Resize to 1080x1080 if not already that size
+    if (image.width != exportSize || image.height != exportSize) {
+      image = img.copyResize(
+        image,
+        width: exportSize,
+        height: exportSize,
+        interpolation: img.Interpolation.cubic,
+      );
     }
 
     switch (format) {

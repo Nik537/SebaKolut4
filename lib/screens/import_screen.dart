@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import '../providers/providers.dart';
 import '../services/file_service.dart';
+import '../widgets/log_viewer.dart';
 import 'grouping_screen.dart';
 
 class ImportScreen extends ConsumerStatefulWidget {
@@ -23,6 +24,9 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
       appBar: AppBar(
         title: const Text('Import Filament Images'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        actions: const [
+          LogViewerButton(),
+        ],
       ),
       body: Column(
         children: [

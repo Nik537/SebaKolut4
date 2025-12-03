@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/providers.dart';
 import '../models/models.dart';
+import '../widgets/log_viewer.dart';
 import 'export_screen.dart';
 
 class ProcessingScreen extends ConsumerStatefulWidget {
@@ -44,6 +45,9 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen>
       appBar: AppBar(
         title: const Text('Processing'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        actions: const [
+          LogViewerButton(),
+        ],
         bottom: groups.length > 1
             ? TabBar(
                 controller: _tabController,
