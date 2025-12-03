@@ -103,7 +103,7 @@ class ProcessingController {
       _log.success('Gemini service initialized');
 
       _log.info('Initializing Nano Banana service...');
-      nanoBananaService.initialize();
+      await nanoBananaService.initialize();
       _log.success('Nano Banana service initialized');
 
       for (final group in groups) {

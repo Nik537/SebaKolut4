@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:image/image.dart' as img;
 import '../models/colorized_image.dart';
 import 'package:uuid/uuid.dart';
@@ -6,9 +7,15 @@ import 'package:uuid/uuid.dart';
 class NanoBananaService {
   bool _isInitialized = false;
   final _uuid = const Uuid();
+  Uint8List? _cartonImageBytes;
 
-  void initialize() {
+  Future<void> initialize() async {
     if (_isInitialized) return;
+
+    // Load the carton overlay image
+    final byteData = await rootBundle.load('assets/images/Carton.png');
+    _cartonImageBytes = byteData.buffer.asUint8List();
+
     _isInitialized = true;
   }
 
@@ -19,7 +26,7 @@ class NanoBananaService {
     required String groupId,
   }) async {
     if (!_isInitialized) {
-      initialize();
+      await initialize();
     }
 
     // Parse hex color
@@ -31,11 +38,14 @@ class NanoBananaService {
       throw ColorizationException('Failed to decode template image');
     }
 
-    // Apply colorization
+    // Apply colorization to the entire image
     final colorizedImage = _applyColorTint(image, color);
 
+    // Overlay the carton image on top
+    final finalImage = _overlayCarton(colorizedImage);
+
     // Encode back to JPEG
-    final outputBytes = Uint8List.fromList(img.encodeJpg(colorizedImage, quality: 95));
+    final outputBytes = Uint8List.fromList(img.encodeJpg(finalImage, quality: 95));
 
     return ColorizedImage(
       id: _uuid.v4(),
@@ -80,15 +90,6 @@ class NanoBananaService {
         // Calculate luminance of original pixel (grayscale value)
         final luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
 
-        // Detect if pixel is part of the cardboard spool (brownish colors)
-        // Cardboard typically has: R > G > B, with specific ratios
-        final isBrownish = _isCardboardColor(r, g, b);
-
-        if (isBrownish) {
-          // Keep cardboard colors unchanged
-          continue;
-        }
-
         // Apply color tint while preserving luminance/sheen
         // Use overlay-like blending for better silk appearance
         int newR, newG, newB;
@@ -112,29 +113,53 @@ class NanoBananaService {
     return result;
   }
 
-  bool _isCardboardColor(int r, int g, int b) {
-    // Cardboard detection: brownish tones
-    // Typical cardboard: warm brown colors where R > G > B
-    // And the color is not too saturated (not pure gray, but not vivid either)
+  img.Image _overlayCarton(img.Image baseImage) {
+    if (_cartonImageBytes == null) {
+      return baseImage;
+    }
 
-    final maxVal = [r, g, b].reduce((a, b) => a > b ? a : b);
-    final minVal = [r, g, b].reduce((a, b) => a < b ? a : b);
-    final saturation = maxVal > 0 ? (maxVal - minVal) / maxVal : 0.0;
-    final luminance = (r + g + b) / 3.0;
+    // Decode carton image (PNG with transparency)
+    final cartonImage = img.decodeImage(_cartonImageBytes!);
+    if (cartonImage == null) {
+      return baseImage;
+    }
 
-    // Check for brownish hue (R > G > B or R >= G > B)
-    final isBrownHue = r >= g && g > b;
+    // Resize carton to match base image if needed
+    img.Image carton = cartonImage;
+    if (carton.width != baseImage.width || carton.height != baseImage.height) {
+      carton = img.copyResize(
+        carton,
+        width: baseImage.width,
+        height: baseImage.height,
+        interpolation: img.Interpolation.cubic,
+      );
+    }
 
-    // Cardboard has moderate saturation and is in mid-luminance range
-    final hasCardboardSaturation = saturation > 0.1 && saturation < 0.6;
-    final hasCardboardLuminance = luminance > 60 && luminance < 200;
+    // Composite carton on top of base image using alpha blending
+    final result = img.Image.from(baseImage);
 
-    // Also check for the specific brown color ratios
-    final rToG = g > 0 ? r / g : 0.0;
-    final gToB = b > 0 ? g / b : 0.0;
-    final hasCardboardRatio = rToG > 1.0 && rToG < 1.5 && gToB > 1.1 && gToB < 2.0;
+    for (int y = 0; y < result.height; y++) {
+      for (int x = 0; x < result.width; x++) {
+        final cartonPixel = carton.getPixel(x, y);
+        final cartonAlpha = cartonPixel.a.toInt();
 
-    return isBrownHue && hasCardboardSaturation && hasCardboardLuminance && hasCardboardRatio;
+        if (cartonAlpha > 0) {
+          final basePixel = result.getPixel(x, y);
+
+          // Alpha blending
+          final alpha = cartonAlpha / 255.0;
+          final invAlpha = 1.0 - alpha;
+
+          final newR = (cartonPixel.r.toInt() * alpha + basePixel.r.toInt() * invAlpha).round().clamp(0, 255);
+          final newG = (cartonPixel.g.toInt() * alpha + basePixel.g.toInt() * invAlpha).round().clamp(0, 255);
+          final newB = (cartonPixel.b.toInt() * alpha + basePixel.b.toInt() * invAlpha).round().clamp(0, 255);
+
+          result.setPixel(x, y, img.ColorRgba8(newR, newG, newB, 255));
+        }
+      }
+    }
+
+    return result;
   }
 }
 
