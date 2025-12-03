@@ -46,6 +46,45 @@ class GeminiService {
     );
   }
 
+  /// Analyze multiple images of the same filament spool (different angles/lighting)
+  /// and determine the single best hex color that represents the filament.
+  Future<String> extractColorFromMultipleImages(List<Uint8List> imageBytesList) async {
+    if (!_isInitialized) {
+      initialize();
+    }
+
+    if (imageBytesList.isEmpty) {
+      throw ColorExtractionException('No images provided');
+    }
+
+    // If only one image, use simple extraction
+    if (imageBytesList.length == 1) {
+      final result = await extractColor(imageBytesList.first);
+      return result.hexColor;
+    }
+
+    // Build prompt with all images
+    final parts = <Part>[
+      TextPart(
+        'These are ${imageBytesList.length} photos of the SAME 3D printing filament spool '
+        'taken from different angles and under different lighting conditions. '
+        'Analyze ALL images together to determine the true color of the filament material. '
+        'Consider that lighting variations may make the color appear different in each photo. '
+        'Determine the single most accurate hex color code that represents this filament. '
+        'Return ONLY the hex code in format #RRGGBB, nothing else.',
+      ),
+    ];
+
+    // Add all images
+    for (final imageBytes in imageBytesList) {
+      parts.add(DataPart('image/jpeg', imageBytes));
+    }
+
+    final prompt = Content.multi(parts);
+    final response = await _model.generateContent([prompt]);
+    return _parseHexFromResponse(response.text);
+  }
+
   String _parseHexFromResponse(String? text) {
     if (text == null || text.isEmpty) {
       throw ColorExtractionException('Empty response from Gemini');

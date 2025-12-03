@@ -130,74 +130,78 @@ class ProcessingController {
     required GeminiService geminiService,
     required NanoBananaService nanoBananaService,
   }) async {
-    for (final imageId in group.imageIds) {
-      final image = images.firstWhere((img) => img.id == imageId);
-      await _processImage(
-        image: image,
-        groupId: group.id,
-        templateBytes: templateBytes,
-        geminiService: geminiService,
-        nanoBananaService: nanoBananaService,
-      );
-    }
-  }
-
-  Future<void> _processImage({
-    required ImportedImage image,
-    required String groupId,
-    required Uint8List templateBytes,
-    required GeminiService geminiService,
-    required NanoBananaService nanoBananaService,
-  }) async {
     final processingNotifier = _ref.read(imageProcessingStateProvider.notifier);
     final colorizedNotifier = _ref.read(colorizedImagesProvider.notifier);
 
-    _log.info('Processing image: ${image.filename}');
+    // Get all images in this group
+    final groupImages = group.imageIds
+        .map((id) => images.firstWhere((img) => img.id == id))
+        .toList();
+
+    _log.info('Analyzing ${groupImages.length} images to determine color...');
+
+    // Mark all images as extracting color
+    for (final image in groupImages) {
+      processingNotifier.setStatus(image.id, ProcessingStatus.extractingColor);
+    }
 
     try {
-      // Step 1: Extract color
-      processingNotifier.setStatus(image.id, ProcessingStatus.extractingColor);
-      _log.info('Extracting color from ${image.filename}...');
-
-      final colorResult = await geminiService.extractColor(image.bytes);
-      _log.success('Color extracted: ${colorResult.hexColor}',
-          details: 'Raw response: ${colorResult.rawResponse}');
-
-      processingNotifier.setStatus(
-        image.id,
-        ProcessingStatus.colorExtracted,
-        extractedHex: colorResult.hexColor,
+      // Extract color from ALL images in the group at once
+      final hexColor = await geminiService.extractColorFromMultipleImages(
+        groupImages.map((img) => img.bytes).toList(),
       );
 
-      // Step 2: Colorize template
-      processingNotifier.setStatus(image.id, ProcessingStatus.colorizing);
-      _log.info('Colorizing template with ${colorResult.hexColor}...');
+      _log.success('Color determined for group: $hexColor');
+
+      // Mark all images as color extracted
+      for (final image in groupImages) {
+        processingNotifier.setStatus(
+          image.id,
+          ProcessingStatus.colorExtracted,
+          extractedHex: hexColor,
+        );
+      }
+
+      // Now colorize the template ONCE for the entire group
+      _log.info('Colorizing template with $hexColor...');
+
+      // Mark first image as colorizing (to show progress)
+      processingNotifier.setStatus(groupImages.first.id, ProcessingStatus.colorizing);
 
       final colorizedImage = await nanoBananaService.colorizeTemplate(
         templateImageBytes: templateBytes,
-        hexColor: colorResult.hexColor,
-        sourceImageId: image.id,
-        groupId: groupId,
+        hexColor: hexColor,
+        sourceImageId: groupImages.first.id, // Use first image as reference
+        groupId: group.id,
       );
 
       _log.success('Template colorized successfully (${colorizedImage.bytes.length} bytes)');
 
+      // Add ONE colorized image for the entire group
       colorizedNotifier.addColorizedImage(colorizedImage);
-      processingNotifier.setStatus(image.id, ProcessingStatus.completed);
 
-      _log.success('Image ${image.filename} completed!');
+      // Mark all images in the group as completed
+      for (final image in groupImages) {
+        processingNotifier.setStatus(image.id, ProcessingStatus.completed, extractedHex: hexColor);
+      }
+
+      _log.success('Group ${group.name} completed!');
     } catch (e, stack) {
       final errorMsg = e.toString();
-      _log.error('Failed to process ${image.filename}',
+      _log.error('Failed to process group ${group.name}',
           details: '$errorMsg\n\nStack trace:\n$stack');
 
-      processingNotifier.setStatus(
-        image.id,
-        ProcessingStatus.error,
-        errorMessage: errorMsg,
-      );
+      // Mark all images as error
+      for (final image in groupImages) {
+        processingNotifier.setStatus(
+          image.id,
+          ProcessingStatus.error,
+          errorMessage: errorMsg,
+        );
+      }
     }
   }
+
 }
 
 // Overall processing status

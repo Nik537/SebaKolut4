@@ -176,182 +176,119 @@ class _GroupProcessingView extends ConsumerWidget {
 
     final groupImages = allImages.where((img) => group.imageIds.contains(img.id)).toList();
 
-    return Padding(
+    // Get group-level state from first image (all images in group share same state)
+    final groupState = groupImages.isNotEmpty ? processingStates[groupImages.first.id] : null;
+
+    // Get the single colorized result for this group
+    final colorizedImage = colorizedImages.isNotEmpty ? colorizedImages.first : null;
+
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: GridView.builder(
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: 0.65,
-        ),
-        itemCount: groupImages.length,
-        itemBuilder: (context, index) {
-          final image = groupImages[index];
-          final state = processingStates[image.id];
-          final colorizedImage = colorizedImages.firstWhere(
-            (c) => c.sourceImageId == image.id,
-            orElse: () => ColorizedImage(
-              id: '',
-              sourceImageId: '',
-              groupId: '',
-              appliedHex: '',
-              bytes: image.bytes,
-              createdAt: DateTime.now(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Source Images Section
+          Text(
+            'Source Images (${groupImages.length})',
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
             ),
-          );
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 120,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: groupImages.length,
+              separatorBuilder: (context, index) => const SizedBox(width: 12),
+              itemBuilder: (context, index) {
+                final image = groupImages[index];
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.memory(
+                    image.thumbnailBytes,
+                    width: 120,
+                    height: 120,
+                    fit: BoxFit.cover,
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 24),
 
-          return _ProcessingCard(
-            image: image,
-            state: state,
-            colorizedImage: colorizedImage.id.isNotEmpty ? colorizedImage : null,
-          );
-        },
-      ),
-    );
-  }
-}
+          // Status/Color Section
+          _buildStatusSection(context, groupState, groupImages.length),
+          const SizedBox(height: 24),
 
-class _ProcessingCard extends StatelessWidget {
-  final ImportedImage image;
-  final ImageProcessingState? state;
-  final ColorizedImage? colorizedImage;
-
-  const _ProcessingCard({
-    required this.image,
-    this.state,
-    this.colorizedImage,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Original image thumbnail
-            Text(
-              'Original',
-              style: TextStyle(
-                fontSize: 11,
-                color: Colors.grey.shade600,
-                fontWeight: FontWeight.w500,
-              ),
+          // Result Section
+          Text(
+            'Result',
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
             ),
-            const SizedBox(height: 4),
-            Expanded(
-              flex: 2,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: Image.memory(
-                  image.thumbnailBytes,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            // Status and extracted color
-            _buildStatusSection(context),
-            const SizedBox(height: 8),
-            // Result image
-            Text(
-              'Result',
-              style: TextStyle(
-                fontSize: 11,
-                color: Colors.grey.shade600,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Expanded(
-              flex: 2,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: colorizedImage != null
-                    ? Image.memory(
-                        colorizedImage!.bytes,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                      )
-                    : Container(
-                        color: Colors.grey.shade200,
-                        child: Center(
-                          child: state?.isProcessing == true
-                              ? const CircularProgressIndicator()
-                              : Icon(
-                                  Icons.image_outlined,
-                                  color: Colors.grey.shade400,
-                                  size: 32,
-                                ),
-                        ),
-                      ),
-              ),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 8),
+          _buildResultSection(context, groupState, colorizedImage),
+        ],
       ),
     );
   }
 
-  Widget _buildStatusSection(BuildContext context) {
+  Widget _buildStatusSection(BuildContext context, ImageProcessingState? state, int imageCount) {
     if (state == null) {
       return _buildStatusRow(
-        context,
         icon: Icons.pending,
         color: Colors.grey,
-        text: 'Waiting...',
+        text: 'Waiting to process $imageCount images...',
       );
     }
 
-    switch (state!.status) {
+    switch (state.status) {
       case ProcessingStatus.pending:
         return _buildStatusRow(
-          context,
           icon: Icons.pending,
           color: Colors.grey,
-          text: 'Pending',
+          text: 'Ready to analyze $imageCount images',
         );
       case ProcessingStatus.extractingColor:
         return _buildStatusRow(
-          context,
           icon: Icons.colorize,
           color: Colors.blue,
-          text: 'Extracting color...',
+          text: 'Analyzing $imageCount images...',
           showProgress: true,
         );
       case ProcessingStatus.colorExtracted:
       case ProcessingStatus.colorizing:
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildColorPreview(state!.extractedHex!),
-            const SizedBox(height: 4),
+            _buildColorPreview(state.extractedHex!),
+            const SizedBox(height: 8),
             _buildStatusRow(
-              context,
               icon: Icons.brush,
               color: Colors.orange,
-              text: 'Colorizing...',
+              text: 'Colorizing template...',
               showProgress: true,
             ),
           ],
         );
       case ProcessingStatus.completed:
-        return _buildColorPreview(state!.extractedHex!);
+        return _buildColorPreview(state.extractedHex!);
       case ProcessingStatus.error:
         return _buildStatusRow(
-          context,
           icon: Icons.error,
           color: Colors.red,
-          text: 'Error',
+          text: 'Error: ${state.errorMessage ?? "Unknown error"}',
         );
     }
   }
 
-  Widget _buildStatusRow(
-    BuildContext context, {
+  Widget _buildStatusRow({
     required IconData icon,
     required Color color,
     required String text,
@@ -361,20 +298,20 @@ class _ProcessingCard extends StatelessWidget {
       children: [
         if (showProgress)
           SizedBox(
-            width: 14,
-            height: 14,
+            width: 18,
+            height: 18,
             child: CircularProgressIndicator(
               strokeWidth: 2,
               color: color,
             ),
           )
         else
-          Icon(icon, size: 14, color: color),
-        const SizedBox(width: 6),
+          Icon(icon, size: 18, color: color),
+        const SizedBox(width: 8),
         Text(
           text,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: 14,
             color: color,
             fontWeight: FontWeight.w500,
           ),
@@ -388,19 +325,19 @@ class _ProcessingCard extends StatelessWidget {
     return Row(
       children: [
         Container(
-          width: 20,
-          height: 20,
+          width: 28,
+          height: 28,
           decoration: BoxDecoration(
             color: color,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(6),
             border: Border.all(color: Colors.grey.shade400),
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 12),
         Text(
           hexColor,
           style: const TextStyle(
-            fontSize: 12,
+            fontSize: 16,
             fontWeight: FontWeight.w600,
             fontFamily: 'monospace',
           ),
@@ -409,8 +346,40 @@ class _ProcessingCard extends StatelessWidget {
     );
   }
 
+  Widget _buildResultSection(BuildContext context, ImageProcessingState? state, ColorizedImage? colorizedImage) {
+    if (colorizedImage != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.memory(
+          colorizedImage.bytes,
+          fit: BoxFit.contain,
+          width: double.infinity,
+        ),
+      );
+    }
+
+    return Container(
+      height: 200,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Center(
+        child: state?.isProcessing == true
+            ? const CircularProgressIndicator()
+            : Icon(
+                Icons.image_outlined,
+                color: Colors.grey.shade400,
+                size: 48,
+              ),
+      ),
+    );
+  }
+
   Color _hexToColor(String hex) {
     final hexCode = hex.replaceAll('#', '');
     return Color(int.parse('FF$hexCode', radix: 16));
   }
 }
+
