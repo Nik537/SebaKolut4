@@ -1,0 +1,49 @@
+name: filament_colorizer
+description: "3D Printing Filament Color Extraction and Colorization Tool"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.7.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # State Management
+  flutter_riverpod: ^2.6.1
+
+  # Environment Variables
+  flutter_dotenv: ^5.2.1
+
+  # Gemini API
+  google_generative_ai: ^0.4.6
+
+  # File Picking & Drag-Drop
+  file_picker: ^8.1.6
+  desktop_drop: ^0.5.0
+
+  # Image Processing
+  image: ^4.3.0
+
+  # File Saving
+  file_saver: ^0.2.14
+  path_provider: ^2.1.5
+
+  # Utilities
+  uuid: ^4.5.1
+  collection: ^1.18.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - .env
