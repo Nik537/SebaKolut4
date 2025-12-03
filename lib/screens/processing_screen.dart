@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/providers.dart';
 import '../models/models.dart';
@@ -220,7 +221,7 @@ class _GroupProcessingView extends ConsumerWidget {
           const SizedBox(height: 24),
 
           // Status/Color Section
-          _buildStatusSection(context, groupState, groupImages.length),
+          _buildStatusSection(context, ref, groupState, groupImages.length),
           const SizedBox(height: 24),
 
           // Result Section
@@ -239,7 +240,7 @@ class _GroupProcessingView extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatusSection(BuildContext context, ImageProcessingState? state, int imageCount) {
+  Widget _buildStatusSection(BuildContext context, WidgetRef ref, ImageProcessingState? state, int imageCount) {
     if (state == null) {
       return _buildStatusRow(
         icon: Icons.pending,
@@ -278,7 +279,13 @@ class _GroupProcessingView extends ConsumerWidget {
           ],
         );
       case ProcessingStatus.completed:
-        return _buildColorPreview(state.extractedHex!);
+        return _EditableHexColor(
+          hexColor: state.extractedHex!,
+          groupId: group.id,
+          onColorChanged: (newHex) {
+            ref.read(processingControllerProvider).recolorizeGroup(group.id, newHex);
+          },
+        );
       case ProcessingStatus.error:
         return _buildStatusRow(
           icon: Icons.error,
@@ -427,44 +434,36 @@ class _ResultWithSliders extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSlider(
-                context,
-                ref,
+              _EditableSlider(
                 label: 'Hue',
                 value: adjustments.hue,
                 min: -1.0,
                 max: 1.0,
-                onChanged: (v) => ref.read(imageAdjustmentsProvider.notifier).updateHue(groupId, v),
+                onChangeEnd: (v) => ref.read(imageAdjustmentsProvider.notifier).updateHue(groupId, v),
               ),
               const SizedBox(height: 16),
-              _buildSlider(
-                context,
-                ref,
+              _EditableSlider(
                 label: 'Saturation',
                 value: adjustments.saturation,
                 min: -1.0,
                 max: 1.0,
-                onChanged: (v) => ref.read(imageAdjustmentsProvider.notifier).updateSaturation(groupId, v),
+                onChangeEnd: (v) => ref.read(imageAdjustmentsProvider.notifier).updateSaturation(groupId, v),
               ),
               const SizedBox(height: 16),
-              _buildSlider(
-                context,
-                ref,
+              _EditableSlider(
                 label: 'Brightness',
                 value: adjustments.brightness,
                 min: -1.0,
                 max: 1.0,
-                onChanged: (v) => ref.read(imageAdjustmentsProvider.notifier).updateBrightness(groupId, v),
+                onChangeEnd: (v) => ref.read(imageAdjustmentsProvider.notifier).updateBrightness(groupId, v),
               ),
               const SizedBox(height: 16),
-              _buildSlider(
-                context,
-                ref,
+              _EditableSlider(
                 label: 'Sharpness',
                 value: adjustments.sharpness,
                 min: 0.0,
                 max: 1.0,
-                onChanged: (v) => ref.read(imageAdjustmentsProvider.notifier).updateSharpness(groupId, v),
+                onChangeEnd: (v) => ref.read(imageAdjustmentsProvider.notifier).updateSharpness(groupId, v),
               ),
               const SizedBox(height: 24),
               // Background toggle
@@ -531,15 +530,86 @@ class _ResultWithSliders extends ConsumerWidget {
     );
   }
 
-  Widget _buildSlider(
-    BuildContext context,
-    WidgetRef ref, {
-    required String label,
-    required double value,
-    required double min,
-    required double max,
-    required ValueChanged<double> onChanged,
-  }) {
+}
+
+/// Editable slider with local state for smooth dragging and keyboard input
+class _EditableSlider extends StatefulWidget {
+  final String label;
+  final double value;
+  final double min;
+  final double max;
+  final ValueChanged<double> onChangeEnd;
+
+  const _EditableSlider({
+    required this.label,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.onChangeEnd,
+  });
+
+  @override
+  State<_EditableSlider> createState() => _EditableSliderState();
+}
+
+class _EditableSliderState extends State<_EditableSlider> {
+  late double _localValue;
+  late TextEditingController _textController;
+  final FocusNode _focusNode = FocusNode();
+  bool _isEditing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _localValue = widget.value;
+    _textController = TextEditingController(text: _localValue.toStringAsFixed(2));
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  @override
+  void didUpdateWidget(_EditableSlider oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Update local value when provider value changes (e.g., from reset)
+    if (oldWidget.value != widget.value && !_isEditing) {
+      _localValue = widget.value;
+      _textController.text = _localValue.toStringAsFixed(2);
+    }
+  }
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _onFocusChange() {
+    if (!_focusNode.hasFocus && _isEditing) {
+      _submitTextValue();
+    }
+    setState(() {
+      _isEditing = _focusNode.hasFocus;
+    });
+  }
+
+  void _submitTextValue() {
+    final parsed = double.tryParse(_textController.text);
+    if (parsed != null) {
+      final clamped = parsed.clamp(widget.min, widget.max);
+      setState(() {
+        _localValue = clamped;
+        _textController.text = clamped.toStringAsFixed(2);
+      });
+      widget.onChangeEnd(clamped);
+    } else {
+      // Invalid input, revert to current value
+      _textController.text = _localValue.toStringAsFixed(2);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -547,18 +617,36 @@ class _ResultWithSliders extends ConsumerWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              label,
+              widget.label,
               style: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),
             ),
-            Text(
-              value.toStringAsFixed(2),
-              style: TextStyle(
-                fontSize: 12,
-                fontFamily: 'monospace',
-                color: Colors.grey.shade600,
+            SizedBox(
+              width: 60,
+              child: TextField(
+                controller: _textController,
+                focusNode: _focusNode,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'monospace',
+                  color: Colors.grey.shade600,
+                ),
+                textAlign: TextAlign.right,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'^-?\d*\.?\d*')),
+                ],
+                decoration: const InputDecoration(
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  border: OutlineInputBorder(),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: Colors.blue, width: 1),
+                  ),
+                ),
+                onSubmitted: (_) => _submitTextValue(),
               ),
             ),
           ],
@@ -570,10 +658,16 @@ class _ResultWithSliders extends ConsumerWidget {
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
           ),
           child: Slider(
-            value: value,
-            min: min,
-            max: max,
-            onChanged: onChanged,
+            value: _localValue,
+            min: widget.min,
+            max: widget.max,
+            onChanged: (v) {
+              setState(() {
+                _localValue = v;
+                _textController.text = v.toStringAsFixed(2);
+              });
+            },
+            onChangeEnd: widget.onChangeEnd,
           ),
         ),
       ],
@@ -581,3 +675,170 @@ class _ResultWithSliders extends ConsumerWidget {
   }
 }
 
+/// Editable hex color input with live color swatch preview
+class _EditableHexColor extends StatefulWidget {
+  final String hexColor;
+  final String groupId;
+  final ValueChanged<String> onColorChanged;
+
+  const _EditableHexColor({
+    required this.hexColor,
+    required this.groupId,
+    required this.onColorChanged,
+  });
+
+  @override
+  State<_EditableHexColor> createState() => _EditableHexColorState();
+}
+
+class _EditableHexColorState extends State<_EditableHexColor> {
+  late TextEditingController _textController;
+  final FocusNode _focusNode = FocusNode();
+  bool _isEditing = false;
+  String _displayHex = '';
+  bool _isValidHex = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _displayHex = widget.hexColor;
+    _textController = TextEditingController(text: widget.hexColor);
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  @override
+  void didUpdateWidget(_EditableHexColor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Update when provider value changes (e.g., after re-colorization)
+    if (oldWidget.hexColor != widget.hexColor && !_isEditing) {
+      _displayHex = widget.hexColor;
+      _textController.text = widget.hexColor;
+      _isValidHex = true;
+    }
+  }
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _onFocusChange() {
+    if (!_focusNode.hasFocus && _isEditing) {
+      _submitValue();
+    }
+    setState(() {
+      _isEditing = _focusNode.hasFocus;
+    });
+  }
+
+  bool _isValidHexColor(String hex) {
+    final pattern = RegExp(r'^#[0-9A-Fa-f]{6}$');
+    return pattern.hasMatch(hex);
+  }
+
+  void _onTextChanged(String value) {
+    // Auto-add # prefix if not present
+    String hex = value;
+    if (!hex.startsWith('#') && hex.isNotEmpty) {
+      hex = '#$hex';
+    }
+    hex = hex.toUpperCase();
+
+    setState(() {
+      _isValidHex = _isValidHexColor(hex) || hex.length < 7;
+      if (_isValidHexColor(hex)) {
+        _displayHex = hex;
+      }
+    });
+  }
+
+  void _submitValue() {
+    String hex = _textController.text.trim().toUpperCase();
+    if (!hex.startsWith('#')) {
+      hex = '#$hex';
+    }
+
+    if (_isValidHexColor(hex)) {
+      if (hex != widget.hexColor) {
+        widget.onColorChanged(hex);
+      }
+      setState(() {
+        _displayHex = hex;
+        _textController.text = hex;
+        _isValidHex = true;
+      });
+    } else {
+      // Invalid input, revert to current value
+      setState(() {
+        _displayHex = widget.hexColor;
+        _textController.text = widget.hexColor;
+        _isValidHex = true;
+      });
+    }
+  }
+
+  Color _hexToColor(String hex) {
+    final hexCode = hex.replaceAll('#', '');
+    if (hexCode.length != 6) return Colors.grey;
+    try {
+      return Color(int.parse('FF$hexCode', radix: 16));
+    } catch (e) {
+      return Colors.grey;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: _hexToColor(_displayHex),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: Colors.grey.shade400),
+          ),
+        ),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 90,
+          child: TextField(
+            controller: _textController,
+            focusNode: _focusNode,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              fontFamily: 'monospace',
+              color: _isValidHex ? Colors.black87 : Colors.red,
+            ),
+            textCapitalization: TextCapitalization.characters,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[#0-9A-Fa-f]')),
+              LengthLimitingTextInputFormatter(7),
+            ],
+            decoration: InputDecoration(
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              border: const OutlineInputBorder(),
+              focusedBorder: OutlineInputBorder(
+                borderSide: BorderSide(
+                  color: _isValidHex ? Colors.blue : Colors.red,
+                  width: 1.5,
+                ),
+              ),
+              errorBorder: const OutlineInputBorder(
+                borderSide: BorderSide(color: Colors.red, width: 1),
+              ),
+            ),
+            onChanged: _onTextChanged,
+            onSubmitted: (_) => _submitValue(),
+          ),
+        ),
+      ],
+    );
+  }
+}

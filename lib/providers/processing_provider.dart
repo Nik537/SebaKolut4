@@ -62,6 +62,10 @@ class ColorizedImagesNotifier extends StateNotifier<List<ColorizedImage>> {
     state = [...state, image];
   }
 
+  void updateForGroup(String groupId, ColorizedImage newImage) {
+    state = state.map((img) => img.groupId == groupId ? newImage : img).toList();
+  }
+
   void reset() {
     state = [];
   }
@@ -208,6 +212,63 @@ class ProcessingController {
     }
   }
 
+  /// Re-colorize a group with a new hex color (user override)
+  Future<void> recolorizeGroup(String groupId, String newHexColor) async {
+    final groups = _ref.read(groupsProvider);
+    final group = groups.firstWhere((g) => g.id == groupId);
+    final images = _ref.read(importedImagesProvider);
+
+    final processingNotifier = _ref.read(imageProcessingStateProvider.notifier);
+    final colorizedNotifier = _ref.read(colorizedImagesProvider.notifier);
+
+    // Get all images in this group
+    final groupImages = group.imageIds
+        .map((id) => images.firstWhere((img) => img.id == id))
+        .toList();
+
+    _log.info('Re-colorizing group ${group.name} with $newHexColor...');
+
+    try {
+      final templateBytes = await _ref.read(templateImageProvider.future);
+      final nanoBananaService = _ref.read(nanoBananaServiceProvider);
+
+      // Ensure service is initialized
+      await nanoBananaService.initialize();
+
+      // Mark first image as colorizing (to show progress)
+      processingNotifier.setStatus(groupImages.first.id, ProcessingStatus.colorizing, extractedHex: newHexColor);
+
+      final colorizedImage = await nanoBananaService.colorizeTemplate(
+        templateImageBytes: templateBytes,
+        hexColor: newHexColor,
+        sourceImageId: groupImages.first.id,
+        groupId: groupId,
+      );
+
+      _log.success('Re-colorized with $newHexColor (${colorizedImage.bytes.length} bytes)');
+
+      // Update the colorized image for this group
+      colorizedNotifier.updateForGroup(groupId, colorizedImage);
+
+      // Mark all images in the group as completed with new hex
+      for (final image in groupImages) {
+        processingNotifier.setStatus(image.id, ProcessingStatus.completed, extractedHex: newHexColor);
+      }
+
+      // Reset adjustments since we have a new base color
+      _ref.read(imageAdjustmentsProvider.notifier).reset(groupId);
+
+    } catch (e, stack) {
+      final errorMsg = e.toString();
+      _log.error('Failed to re-colorize group ${group.name}',
+          details: '$errorMsg\n\nStack trace:\n$stack');
+
+      // Revert to completed state (keep old hex)
+      for (final image in groupImages) {
+        processingNotifier.setStatus(image.id, ProcessingStatus.completed);
+      }
+    }
+  }
 }
 
 // Overall processing status
