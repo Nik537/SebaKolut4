@@ -233,7 +233,7 @@ class _GroupProcessingView extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 8),
-          _buildResultSection(context, groupState, colorizedImage),
+          _buildResultSection(context, groupState, colorizedImage, ref),
         ],
       ),
     );
@@ -346,16 +346,9 @@ class _GroupProcessingView extends ConsumerWidget {
     );
   }
 
-  Widget _buildResultSection(BuildContext context, ImageProcessingState? state, ColorizedImage? colorizedImage) {
+  Widget _buildResultSection(BuildContext context, ImageProcessingState? state, ColorizedImage? colorizedImage, WidgetRef ref) {
     if (colorizedImage != null) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Image.memory(
-          colorizedImage.bytes,
-          fit: BoxFit.contain,
-          width: double.infinity,
-        ),
-      );
+      return _ResultWithSliders(groupId: group.id, colorizedImage: colorizedImage);
     }
 
     return Container(
@@ -380,6 +373,159 @@ class _GroupProcessingView extends ConsumerWidget {
   Color _hexToColor(String hex) {
     final hexCode = hex.replaceAll('#', '');
     return Color(int.parse('FF$hexCode', radix: 16));
+  }
+}
+
+class _ResultWithSliders extends ConsumerWidget {
+  final String groupId;
+  final ColorizedImage colorizedImage;
+
+  const _ResultWithSliders({
+    required this.groupId,
+    required this.colorizedImage,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final adjustments = ref.watch(groupAdjustmentsProvider(groupId));
+    final adjustedImageAsync = ref.watch(adjustedImageBytesProvider(groupId));
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Result image (50% width)
+        Expanded(
+          flex: 1,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: adjustedImageAsync.when(
+              data: (bytes) => bytes != null
+                  ? Image.memory(
+                      bytes,
+                      fit: BoxFit.contain,
+                      width: double.infinity,
+                    )
+                  : const SizedBox(),
+              loading: () => Container(
+                height: 200,
+                color: Colors.grey.shade200,
+                child: const Center(child: CircularProgressIndicator()),
+              ),
+              error: (e, _) => Container(
+                height: 200,
+                color: Colors.grey.shade200,
+                child: Center(child: Text('Error: $e')),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 24),
+        // Sliders (50% width)
+        Expanded(
+          flex: 1,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSlider(
+                context,
+                ref,
+                label: 'Hue',
+                value: adjustments.hue,
+                min: -1.0,
+                max: 1.0,
+                onChanged: (v) => ref.read(imageAdjustmentsProvider.notifier).updateHue(groupId, v),
+              ),
+              const SizedBox(height: 16),
+              _buildSlider(
+                context,
+                ref,
+                label: 'Saturation',
+                value: adjustments.saturation,
+                min: -1.0,
+                max: 1.0,
+                onChanged: (v) => ref.read(imageAdjustmentsProvider.notifier).updateSaturation(groupId, v),
+              ),
+              const SizedBox(height: 16),
+              _buildSlider(
+                context,
+                ref,
+                label: 'Brightness',
+                value: adjustments.brightness,
+                min: -1.0,
+                max: 1.0,
+                onChanged: (v) => ref.read(imageAdjustmentsProvider.notifier).updateBrightness(groupId, v),
+              ),
+              const SizedBox(height: 16),
+              _buildSlider(
+                context,
+                ref,
+                label: 'Sharpness',
+                value: adjustments.sharpness,
+                min: 0.0,
+                max: 1.0,
+                onChanged: (v) => ref.read(imageAdjustmentsProvider.notifier).updateSharpness(groupId, v),
+              ),
+              const SizedBox(height: 24),
+              // Reset button
+              TextButton.icon(
+                onPressed: () => ref.read(imageAdjustmentsProvider.notifier).reset(groupId),
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Reset Adjustments'),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSlider(
+    BuildContext context,
+    WidgetRef ref, {
+    required String label,
+    required double value,
+    required double min,
+    required double max,
+    required ValueChanged<double> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Text(
+              value.toStringAsFixed(2),
+              style: TextStyle(
+                fontSize: 12,
+                fontFamily: 'monospace',
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 4,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+          ),
+          child: Slider(
+            value: value,
+            min: min,
+            max: max,
+            onChanged: onChanged,
+          ),
+        ),
+      ],
+    );
   }
 }
 

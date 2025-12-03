@@ -6,6 +6,7 @@ class ColorizedImage {
   final String groupId;
   final String appliedHex;
   final Uint8List bytes;
+  final Uint8List baseColorizedBytes; // Colorized image BEFORE carton overlay
   final DateTime createdAt;
 
   const ColorizedImage({
@@ -14,6 +15,7 @@ class ColorizedImage {
     required this.groupId,
     required this.appliedHex,
     required this.bytes,
+    required this.baseColorizedBytes,
     required this.createdAt,
   });
 
@@ -23,6 +25,7 @@ class ColorizedImage {
     String? groupId,
     String? appliedHex,
     Uint8List? bytes,
+    Uint8List? baseColorizedBytes,
     DateTime? createdAt,
   }) {
     return ColorizedImage(
@@ -31,6 +34,7 @@ class ColorizedImage {
       groupId: groupId ?? this.groupId,
       appliedHex: appliedHex ?? this.appliedHex,
       bytes: bytes ?? this.bytes,
+      baseColorizedBytes: baseColorizedBytes ?? this.baseColorizedBytes,
       createdAt: createdAt ?? this.createdAt,
     );
   }

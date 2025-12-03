@@ -221,3 +221,105 @@ final processingCompleteProvider = Provider<bool>((ref) {
     states[id]?.isComplete == true || states[id]?.hasError == true
   );
 });
+
+// Image adjustments
+class ImageAdjustments {
+  final double hue;
+  final double saturation;
+  final double brightness;
+  final double sharpness;
+
+  const ImageAdjustments({
+    this.hue = 0.0,
+    this.saturation = 0.0,
+    this.brightness = 0.0,
+    this.sharpness = 0.0,
+  });
+
+  ImageAdjustments copyWith({
+    double? hue,
+    double? saturation,
+    double? brightness,
+    double? sharpness,
+  }) {
+    return ImageAdjustments(
+      hue: hue ?? this.hue,
+      saturation: saturation ?? this.saturation,
+      brightness: brightness ?? this.brightness,
+      sharpness: sharpness ?? this.sharpness,
+    );
+  }
+
+  bool get hasAdjustments => hue != 0 || saturation != 0 || brightness != 0 || sharpness != 0;
+}
+
+// Per-group adjustments state
+final imageAdjustmentsProvider =
+    StateNotifierProvider<ImageAdjustmentsNotifier, Map<String, ImageAdjustments>>((ref) {
+  return ImageAdjustmentsNotifier();
+});
+
+class ImageAdjustmentsNotifier extends StateNotifier<Map<String, ImageAdjustments>> {
+  ImageAdjustmentsNotifier() : super({});
+
+  void setAdjustments(String groupId, ImageAdjustments adjustments) {
+    state = {...state, groupId: adjustments};
+  }
+
+  void updateHue(String groupId, double value) {
+    final current = state[groupId] ?? const ImageAdjustments();
+    state = {...state, groupId: current.copyWith(hue: value)};
+  }
+
+  void updateSaturation(String groupId, double value) {
+    final current = state[groupId] ?? const ImageAdjustments();
+    state = {...state, groupId: current.copyWith(saturation: value)};
+  }
+
+  void updateBrightness(String groupId, double value) {
+    final current = state[groupId] ?? const ImageAdjustments();
+    state = {...state, groupId: current.copyWith(brightness: value)};
+  }
+
+  void updateSharpness(String groupId, double value) {
+    final current = state[groupId] ?? const ImageAdjustments();
+    state = {...state, groupId: current.copyWith(sharpness: value)};
+  }
+
+  void reset(String groupId) {
+    state = {...state, groupId: const ImageAdjustments()};
+  }
+}
+
+// Get adjustments for a specific group
+final groupAdjustmentsProvider =
+    Provider.family<ImageAdjustments, String>((ref, groupId) {
+  final adjustments = ref.watch(imageAdjustmentsProvider);
+  return adjustments[groupId] ?? const ImageAdjustments();
+});
+
+// Adjusted image bytes provider - computes adjusted image when needed
+final adjustedImageBytesProvider =
+    FutureProvider.family<Uint8List?, String>((ref, groupId) async {
+  final colorizedImages = ref.watch(colorizedImagesByGroupProvider(groupId));
+  final adjustments = ref.watch(groupAdjustmentsProvider(groupId));
+
+  if (colorizedImages.isEmpty) return null;
+
+  final colorizedImage = colorizedImages.first;
+
+  // If no adjustments, return original bytes
+  if (!adjustments.hasAdjustments) {
+    return colorizedImage.bytes;
+  }
+
+  // Apply adjustments
+  final nanoBananaService = ref.read(nanoBananaServiceProvider);
+  return nanoBananaService.applyAdjustments(
+    baseColorizedBytes: colorizedImage.baseColorizedBytes,
+    hue: adjustments.hue,
+    saturation: adjustments.saturation,
+    brightness: adjustments.brightness,
+    sharpness: adjustments.sharpness,
+  );
+});
