@@ -1,46 +1,9 @@
+import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/export_service.dart';
 import 'processing_provider.dart';
 
 final exportServiceProvider = Provider<ExportService>((ref) => ExportService());
-
-// Export settings state
-class ExportSettings {
-  final ExportFormat format;
-  final int quality;
-
-  const ExportSettings({
-    this.format = ExportFormat.png,
-    this.quality = 90,
-  });
-
-  ExportSettings copyWith({
-    ExportFormat? format,
-    int? quality,
-  }) {
-    return ExportSettings(
-      format: format ?? this.format,
-      quality: quality ?? this.quality,
-    );
-  }
-}
-
-final exportSettingsProvider =
-    StateNotifierProvider<ExportSettingsNotifier, ExportSettings>((ref) {
-  return ExportSettingsNotifier();
-});
-
-class ExportSettingsNotifier extends StateNotifier<ExportSettings> {
-  ExportSettingsNotifier() : super(const ExportSettings());
-
-  void setFormat(ExportFormat format) {
-    state = state.copyWith(format: format);
-  }
-
-  void setQuality(int quality) {
-    state = state.copyWith(quality: quality);
-  }
-}
 
 // Export controller
 final exportControllerProvider = Provider<ExportController>((ref) {
@@ -54,25 +17,55 @@ class ExportController {
 
   Future<void> exportAll() async {
     final colorizedImages = _ref.read(colorizedImagesProvider);
-    final settings = _ref.read(exportSettingsProvider);
     final exportService = _ref.read(exportServiceProvider);
+    final nanoBananaService = _ref.read(nanoBananaServiceProvider);
 
-    await exportService.saveAllToDirectory(
-      images: colorizedImages,
-      format: settings.format,
-      quality: settings.quality,
-    );
+    // Prepare export data: for each image, generate both white and transparent versions
+    final exportData = <ExportImageData>[];
+
+    for (final image in colorizedImages) {
+      final adjustments = _ref.read(groupAdjustmentsProvider(image.groupId));
+
+      // Generate white background version
+      final whiteBytes = await nanoBananaService.applyAdjustments(
+        baseColorizedBytes: image.baseColorizedBytes,
+        hue: adjustments.hue,
+        saturation: adjustments.saturation,
+        brightness: adjustments.brightness,
+        sharpness: adjustments.sharpness,
+        useWhiteBackground: true,
+      );
+
+      // Generate transparent background version
+      final transparentBytes = await nanoBananaService.applyAdjustments(
+        baseColorizedBytes: image.baseColorizedBytes,
+        hue: adjustments.hue,
+        saturation: adjustments.saturation,
+        brightness: adjustments.brightness,
+        sharpness: adjustments.sharpness,
+        useWhiteBackground: false,
+      );
+
+      exportData.add(ExportImageData(
+        hexColor: image.appliedHex,
+        whiteBytes: whiteBytes,
+        transparentBytes: transparentBytes,
+      ));
+    }
+
+    await exportService.exportDualBackground(images: exportData);
   }
+}
 
-  Future<void> exportGroup(String groupId) async {
-    final colorizedImages = _ref.read(colorizedImagesByGroupProvider(groupId));
-    final settings = _ref.read(exportSettingsProvider);
-    final exportService = _ref.read(exportServiceProvider);
+/// Data class for exporting images with both background versions
+class ExportImageData {
+  final String hexColor;
+  final Uint8List whiteBytes;
+  final Uint8List transparentBytes;
 
-    await exportService.saveAllToDirectory(
-      images: colorizedImages,
-      format: settings.format,
-      quality: settings.quality,
-    );
-  }
+  ExportImageData({
+    required this.hexColor,
+    required this.whiteBytes,
+    required this.transparentBytes,
+  });
 }

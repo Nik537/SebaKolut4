@@ -206,13 +206,19 @@ class _GroupProcessingView extends ConsumerWidget {
               separatorBuilder: (context, index) => const SizedBox(width: 12),
               itemBuilder: (context, index) {
                 final image = groupImages[index];
-                return ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.memory(
-                    image.thumbnailBytes,
-                    width: 120,
-                    height: 120,
-                    fit: BoxFit.cover,
+                return GestureDetector(
+                  onTap: () => _showImagePopup(context, image.bytes, image.filename),
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.memory(
+                        image.thumbnailBytes,
+                        width: 120,
+                        height: 120,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
                   ),
                 );
               },
@@ -377,6 +383,78 @@ class _GroupProcessingView extends ConsumerWidget {
     );
   }
 
+  void _showImagePopup(BuildContext context, Uint8List imageBytes, String imageName) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Stack(
+          children: [
+            // Image container
+            Container(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.8,
+                maxHeight: MediaQuery.of(context).size.height * 0.8,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header with title and close button
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            imageName,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.of(context).pop(),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          iconSize: 20,
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Image
+                  Flexible(
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+                      child: InteractiveViewer(
+                        minScale: 0.5,
+                        maxScale: 4.0,
+                        child: Image.memory(
+                          imageBytes,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Color _hexToColor(String hex) {
     final hexCode = hex.replaceAll('#', '');
     return Color(int.parse('FF$hexCode', radix: 16));
@@ -396,7 +474,6 @@ class _ResultWithSliders extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final adjustments = ref.watch(groupAdjustmentsProvider(groupId));
     final adjustedImageAsync = ref.watch(adjustedImageBytesProvider(groupId));
-    final backgroundMode = ref.watch(backgroundModeProvider);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -458,57 +535,6 @@ class _ResultWithSliders extends ConsumerWidget {
                 onChangeEnd: (v) => ref.read(imageAdjustmentsProvider.notifier).updateBrightness(groupId, v),
               ),
               const SizedBox(height: 24),
-              // Background toggle
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Background',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      if (backgroundMode == BackgroundMode.transparent)
-                        Text(
-                          'PNG export only',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.orange.shade700,
-                          ),
-                        ),
-                    ],
-                  ),
-                  SegmentedButton<BackgroundMode>(
-                    segments: const [
-                      ButtonSegment(
-                        value: BackgroundMode.white,
-                        label: Text('White'),
-                        icon: Icon(Icons.square, size: 16),
-                      ),
-                      ButtonSegment(
-                        value: BackgroundMode.transparent,
-                        label: Text('None'),
-                        icon: Icon(Icons.square_outlined, size: 16),
-                      ),
-                    ],
-                    selected: {backgroundMode},
-                    onSelectionChanged: (Set<BackgroundMode> selection) {
-                      ref.read(backgroundModeProvider.notifier).state = selection.first;
-                    },
-                    style: ButtonStyle(
-                      visualDensity: VisualDensity.compact,
-                      textStyle: WidgetStateProperty.all(
-                        const TextStyle(fontSize: 12),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
               // Reset button
               TextButton.icon(
                 onPressed: () => ref.read(imageAdjustmentsProvider.notifier).reset(groupId),

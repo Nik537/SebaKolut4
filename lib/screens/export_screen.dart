@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/providers.dart';
-import '../services/export_service.dart';
 import '../widgets/log_viewer.dart';
 
 class ExportScreen extends ConsumerStatefulWidget {
@@ -45,7 +44,6 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
   @override
   Widget build(BuildContext context) {
     final colorizedImages = ref.watch(colorizedImagesProvider);
-    final exportSettings = ref.watch(exportSettingsProvider);
     final groups = ref.watch(groupsProvider);
 
     return Scaffold(
@@ -92,8 +90,6 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
                         return _ExportPreviewCard(
                           image: image,
                           groupName: group.name,
-                          index: index,
-                          format: exportSettings.format,
                         );
                       },
                     ),
@@ -117,7 +113,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
                 const Padding(
                   padding: EdgeInsets.all(16),
                   child: Text(
-                    'Export Settings',
+                    'Export',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -131,82 +127,6 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Format selection
-                        const Text(
-                          'Format',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _FormatOption(
-                          format: ExportFormat.png,
-                          label: 'PNG',
-                          description: 'Lossless, best quality',
-                          selected: exportSettings.format == ExportFormat.png,
-                          onSelect: () {
-                            ref.read(exportSettingsProvider.notifier).setFormat(ExportFormat.png);
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        _FormatOption(
-                          format: ExportFormat.jpeg,
-                          label: 'JPEG',
-                          description: 'Smaller file size',
-                          selected: exportSettings.format == ExportFormat.jpeg,
-                          onSelect: () {
-                            ref.read(exportSettingsProvider.notifier).setFormat(ExportFormat.jpeg);
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        _FormatOption(
-                          format: ExportFormat.webp,
-                          label: 'WebP',
-                          description: 'Modern format, good compression',
-                          selected: exportSettings.format == ExportFormat.webp,
-                          onSelect: () {
-                            ref.read(exportSettingsProvider.notifier).setFormat(ExportFormat.webp);
-                          },
-                        ),
-                        const SizedBox(height: 24),
-                        // Quality slider (for JPEG/WebP)
-                        if (exportSettings.format != ExportFormat.png) ...[
-                          const Text(
-                            'Quality',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Slider(
-                                  value: exportSettings.quality.toDouble(),
-                                  min: 10,
-                                  max: 100,
-                                  divisions: 9,
-                                  label: '${exportSettings.quality}%',
-                                  onChanged: (value) {
-                                    ref.read(exportSettingsProvider.notifier).setQuality(value.toInt());
-                                  },
-                                ),
-                              ),
-                              SizedBox(
-                                width: 50,
-                                child: Text(
-                                  '${exportSettings.quality}%',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                        const Spacer(),
                         // Export info
                         Container(
                           padding: const EdgeInsets.all(12),
@@ -215,12 +135,13 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Icon(Icons.info_outline, color: Colors.blue.shade700),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
-                                  'Files will be named:\nfilament_[hex]_001.${_getExtension(exportSettings.format)}',
+                                  'Two files per image:\n[hex]_white.webp\n[hex]_transparent.webp',
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: Colors.blue.shade700,
@@ -230,6 +151,15 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
                             ],
                           ),
                         ),
+                        const SizedBox(height: 16),
+                        Text(
+                          '${colorizedImages.length * 2} files will be exported',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        const Spacer(),
                       ],
                     ),
                   ),
@@ -270,107 +200,23 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
       ),
     );
   }
-
-  String _getExtension(ExportFormat format) {
-    switch (format) {
-      case ExportFormat.png:
-        return 'png';
-      case ExportFormat.jpeg:
-        return 'jpg';
-      case ExportFormat.webp:
-        return 'webp';
-    }
-  }
 }
 
-class _FormatOption extends StatelessWidget {
-  final ExportFormat format;
-  final String label;
-  final String description;
-  final bool selected;
-  final VoidCallback onSelect;
-
-  const _FormatOption({
-    required this.format,
-    required this.label,
-    required this.description,
-    required this.selected,
-    required this.onSelect,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onSelect,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: selected
-                ? Theme.of(context).colorScheme.primary
-                : Colors.grey.shade300,
-            width: selected ? 2 : 1,
-          ),
-          borderRadius: BorderRadius.circular(8),
-          color: selected
-              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.05)
-              : Colors.white,
-        ),
-        child: Row(
-          children: [
-            Radio<ExportFormat>(
-              value: format,
-              groupValue: selected ? format : null,
-              onChanged: (_) => onSelect(),
-            ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: selected
-                          ? Theme.of(context).colorScheme.primary
-                          : Colors.black87,
-                    ),
-                  ),
-                  Text(
-                    description,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ExportPreviewCard extends StatelessWidget {
+class _ExportPreviewCard extends ConsumerWidget {
   final dynamic image;
   final String groupName;
-  final int index;
-  final ExportFormat format;
 
   const _ExportPreviewCard({
     required this.image,
     required this.groupName,
-    required this.index,
-    required this.format,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final hexClean = image.appliedHex.replaceAll('#', '');
-    final extension = format == ExportFormat.jpeg ? 'jpg' : format.name;
-    final filename = 'filament_${hexClean}_${index.toString().padLeft(3, '0')}.$extension';
+
+    // Use adjusted image bytes instead of original
+    final adjustedBytesAsync = ref.watch(adjustedImageBytesProvider(image.groupId));
 
     return Card(
       child: Column(
@@ -379,10 +225,24 @@ class _ExportPreviewCard extends StatelessWidget {
           Expanded(
             child: ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-              child: Image.memory(
-                image.bytes,
-                fit: BoxFit.cover,
-                width: double.infinity,
+              child: adjustedBytesAsync.when(
+                data: (bytes) => bytes != null
+                    ? Image.memory(
+                        bytes,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                      )
+                    : Image.memory(
+                        image.bytes,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                      ),
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (_, __) => Image.memory(
+                  image.bytes,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                ),
               ),
             ),
           ),
@@ -415,7 +275,7 @@ class _ExportPreviewCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  filename,
+                  '${hexClean}_white.webp',
                   style: TextStyle(
                     fontSize: 10,
                     color: Colors.grey.shade600,

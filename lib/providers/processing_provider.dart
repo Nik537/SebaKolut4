@@ -16,12 +16,6 @@ final templateImageProvider = FutureProvider<Uint8List>((ref) async {
   return data.buffer.asUint8List();
 });
 
-// Background mode enum
-enum BackgroundMode { white, transparent }
-
-// Background mode state provider
-final backgroundModeProvider = StateProvider<BackgroundMode>((ref) => BackgroundMode.white);
-
 // Processing state for individual images
 final imageProcessingStateProvider =
     StateNotifierProvider<ImageProcessingStateNotifier, Map<String, ImageProcessingState>>((ref) {
@@ -366,17 +360,16 @@ final groupAdjustmentsProvider =
 });
 
 // Adjusted image bytes provider - computes adjusted image when needed
+// Always uses white background for preview (both versions exported separately)
 final adjustedImageBytesProvider =
     FutureProvider.family<Uint8List?, String>((ref, groupId) async {
   final colorizedImages = ref.watch(colorizedImagesByGroupProvider(groupId));
   final adjustments = ref.watch(groupAdjustmentsProvider(groupId));
-  final backgroundMode = ref.watch(backgroundModeProvider);
 
   if (colorizedImages.isEmpty) return null;
 
   final colorizedImage = colorizedImages.first;
 
-  // Always apply adjustments (to handle background mode changes)
   final nanoBananaService = ref.read(nanoBananaServiceProvider);
   return nanoBananaService.applyAdjustments(
     baseColorizedBytes: colorizedImage.baseColorizedBytes,
@@ -384,6 +377,6 @@ final adjustedImageBytesProvider =
     saturation: adjustments.saturation,
     brightness: adjustments.brightness,
     sharpness: adjustments.sharpness,
-    useWhiteBackground: backgroundMode == BackgroundMode.white,
+    useWhiteBackground: true,
   );
 });

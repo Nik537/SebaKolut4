@@ -4,18 +4,14 @@ import 'package:file_picker/file_picker.dart';
 import 'package:file_saver/file_saver.dart';
 import 'package:image/image.dart' as img;
 import 'package:flutter/foundation.dart' show kIsWeb;
-import '../models/colorized_image.dart';
-
-enum ExportFormat { png, jpeg, webp }
+import '../providers/export_provider.dart';
 
 class ExportService {
   static const int exportSize = 1080;
 
-  Future<Uint8List> convertImage({
-    required Uint8List imageBytes,
-    required ExportFormat format,
-    int quality = 90,
-  }) async {
+  /// Prepare image for export: resize to 1080x1080 and encode as PNG
+  /// (PNG preserves transparency for transparent background version)
+  Future<Uint8List> _prepareForExport(Uint8List imageBytes) async {
     var image = img.decodeImage(imageBytes);
     if (image == null) {
       throw ExportException('Failed to decode image');
@@ -31,93 +27,36 @@ class ExportService {
       );
     }
 
-    switch (format) {
-      case ExportFormat.png:
-        return Uint8List.fromList(img.encodePng(image));
-      case ExportFormat.jpeg:
-        return Uint8List.fromList(img.encodeJpg(image, quality: quality));
-      case ExportFormat.webp:
-        // Note: image package doesn't support webp encoding well
-        // Fall back to PNG for now
-        return Uint8List.fromList(img.encodePng(image));
-    }
+    // Encode as PNG (supports transparency)
+    return Uint8List.fromList(img.encodePng(image));
   }
 
-  String _getExtension(ExportFormat format) {
-    switch (format) {
-      case ExportFormat.png:
-        return 'png';
-      case ExportFormat.jpeg:
-        return 'jpg';
-      case ExportFormat.webp:
-        return 'webp';
-    }
-  }
-
-  MimeType _getMimeType(ExportFormat format) {
-    switch (format) {
-      case ExportFormat.png:
-        return MimeType.png;
-      case ExportFormat.jpeg:
-        return MimeType.jpeg;
-      case ExportFormat.webp:
-        return MimeType.other;
-    }
-  }
-
-  String generateFilename(ColorizedImage image, ExportFormat format, int index) {
-    final ext = _getExtension(format);
-    final hex = image.appliedHex.replaceAll('#', '');
-    return 'filament_${hex}_${index.toString().padLeft(3, '0')}.$ext';
-  }
-
-  Future<void> saveFile({
-    required Uint8List bytes,
-    required String filename,
-    required ExportFormat format,
+  /// Export images with both white and transparent background versions
+  /// File naming: [hex]_white.webp and [hex]_transparent.webp
+  Future<void> exportDualBackground({
+    required List<ExportImageData> images,
   }) async {
-    final ext = _getExtension(format);
-    if (kIsWeb) {
-      await FileSaver.instance.saveFile(
-        name: filename,
-        bytes: bytes,
-        ext: ext,
-        mimeType: _getMimeType(format),
-      );
-    } else {
-      final result = await FilePicker.platform.saveFile(
-        dialogTitle: 'Save Colorized Image',
-        fileName: filename,
-      );
-
-      if (result != null) {
-        final file = File(result);
-        await file.writeAsBytes(bytes);
-      }
-    }
-  }
-
-  Future<void> saveAllToDirectory({
-    required List<ColorizedImage> images,
-    required ExportFormat format,
-    int quality = 90,
-  }) async {
-    final ext = _getExtension(format);
-
     if (kIsWeb) {
       // Web: Download each file individually
-      for (int i = 0; i < images.length; i++) {
-        final converted = await convertImage(
-          imageBytes: images[i].bytes,
-          format: format,
-          quality: quality,
-        );
-        final filename = generateFilename(images[i], format, i);
+      for (final imageData in images) {
+        final hex = imageData.hexColor.replaceAll('#', '');
+
+        // Export white background version
+        final whiteConverted = await _prepareForExport(imageData.whiteBytes);
         await FileSaver.instance.saveFile(
-          name: filename,
-          bytes: converted,
-          ext: ext,
-          mimeType: _getMimeType(format),
+          name: '${hex}_white.webp',
+          bytes: whiteConverted,
+          ext: 'webp',
+          mimeType: MimeType.other,
+        );
+
+        // Export transparent background version
+        final transparentConverted = await _prepareForExport(imageData.transparentBytes);
+        await FileSaver.instance.saveFile(
+          name: '${hex}_transparent.webp',
+          bytes: transparentConverted,
+          ext: 'webp',
+          mimeType: MimeType.other,
         );
       }
     } else {
@@ -127,15 +66,18 @@ class ExportService {
       );
 
       if (directory != null) {
-        for (int i = 0; i < images.length; i++) {
-          final converted = await convertImage(
-            imageBytes: images[i].bytes,
-            format: format,
-            quality: quality,
-          );
-          final filename = generateFilename(images[i], format, i);
-          final file = File('$directory/$filename');
-          await file.writeAsBytes(converted);
+        for (final imageData in images) {
+          final hex = imageData.hexColor.replaceAll('#', '');
+
+          // Export white background version
+          final whiteConverted = await _prepareForExport(imageData.whiteBytes);
+          final whiteFile = File('$directory/${hex}_white.webp');
+          await whiteFile.writeAsBytes(whiteConverted);
+
+          // Export transparent background version
+          final transparentConverted = await _prepareForExport(imageData.transparentBytes);
+          final transparentFile = File('$directory/${hex}_transparent.webp');
+          await transparentFile.writeAsBytes(transparentConverted);
         }
       }
     }
