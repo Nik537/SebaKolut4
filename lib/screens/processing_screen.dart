@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +6,25 @@ import '../providers/providers.dart';
 import '../models/models.dart';
 import '../widgets/log_viewer.dart';
 import 'export_screen.dart';
+
+/// Data class for tracking open image popup windows
+class _ImagePopupData {
+  final String id;
+  final Uint8List imageBytes;
+  final String imageName;
+  Offset position;
+  final int imageWidth;
+  final int imageHeight;
+
+  _ImagePopupData({
+    required this.id,
+    required this.imageBytes,
+    required this.imageName,
+    required this.position,
+    required this.imageWidth,
+    required this.imageHeight,
+  });
+}
 
 class ProcessingScreen extends ConsumerStatefulWidget {
   const ProcessingScreen({super.key});
@@ -164,18 +184,26 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen>
   }
 }
 
-class _GroupProcessingView extends ConsumerWidget {
+class _GroupProcessingView extends ConsumerStatefulWidget {
   final ImageGroup group;
 
   const _GroupProcessingView({required this.group});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_GroupProcessingView> createState() => _GroupProcessingViewState();
+}
+
+class _GroupProcessingViewState extends ConsumerState<_GroupProcessingView> {
+  final List<_ImagePopupData> _openPopups = [];
+  int _popupIdCounter = 0;
+
+  @override
+  Widget build(BuildContext context) {
     final allImages = ref.watch(importedImagesProvider);
     final processingStates = ref.watch(imageProcessingStateProvider);
-    final colorizedImages = ref.watch(colorizedImagesByGroupProvider(group.id));
+    final colorizedImages = ref.watch(colorizedImagesByGroupProvider(widget.group.id));
 
-    final groupImages = allImages.where((img) => group.imageIds.contains(img.id)).toList();
+    final groupImages = allImages.where((img) => widget.group.imageIds.contains(img.id)).toList();
 
     // Get group-level state from first image (all images in group share same state)
     final groupState = groupImages.isNotEmpty ? processingStates[groupImages.first.id] : null;
@@ -183,70 +211,137 @@ class _GroupProcessingView extends ConsumerWidget {
     // Get the single colorized result for this group
     final colorizedImage = colorizedImages.isNotEmpty ? colorizedImages.first : null;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Source Images Section
-          Text(
-            'Source Images (${groupImages.length})',
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 120,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: groupImages.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 12),
-              itemBuilder: (context, index) {
-                final image = groupImages[index];
-                return GestureDetector(
-                  onTap: () => _showImagePopup(context, image.bytes, image.filename),
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.memory(
-                        image.thumbnailBytes,
-                        width: 120,
-                        height: 120,
-                        fit: BoxFit.cover,
+    return Stack(
+      children: [
+        // Main content
+        SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Source Images Section
+              Text(
+                'Source Images (${groupImages.length})',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 120,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: groupImages.length,
+                  separatorBuilder: (context, index) => const SizedBox(width: 12),
+                  itemBuilder: (context, index) {
+                    final image = groupImages[index];
+                    return GestureDetector(
+                      onTap: () => _openImagePopup(image.bytes, image.filename),
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.memory(
+                            image.thumbnailBytes,
+                            width: 120,
+                            height: 120,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 24),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 24),
 
-          // Status/Color Section
-          _buildStatusSection(context, ref, groupState, groupImages.length),
-          const SizedBox(height: 24),
+              // Status/Color Section
+              _buildStatusSection(context, groupState, groupImages.length),
+              const SizedBox(height: 24),
 
-          // Result Section
-          Text(
-            'Result',
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
+              // Result Section
+              Text(
+                'Result',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _buildResultSection(context, groupState, colorizedImage),
+            ],
           ),
-          const SizedBox(height: 8),
-          _buildResultSection(context, groupState, colorizedImage, ref),
-        ],
-      ),
+        ),
+        // Popup windows
+        ..._openPopups.map((popup) => _DraggableImagePopup(
+          key: ValueKey(popup.id),
+          popup: popup,
+          onClose: () => _closePopup(popup.id),
+          onDragUpdate: (delta) => _updatePopupPosition(popup.id, delta),
+          onBringToFront: () => _bringToFront(popup.id),
+        )),
+      ],
     );
   }
 
-  Widget _buildStatusSection(BuildContext context, WidgetRef ref, ImageProcessingState? state, int imageCount) {
+  Future<void> _openImagePopup(Uint8List imageBytes, String imageName) async {
+    // Decode image to get dimensions
+    final codec = await ui.instantiateImageCodec(imageBytes);
+    final frame = await codec.getNextFrame();
+    final imageWidth = frame.image.width;
+    final imageHeight = frame.image.height;
+    frame.image.dispose();
+    codec.dispose();
+
+    // Check if widget is still mounted after async operation
+    if (!mounted) return;
+
+    // Calculate initial position (with offset for multiple windows)
+    final offsetMultiplier = _openPopups.length % 5;
+    final initialPosition = Offset(
+      100 + (offsetMultiplier * 30),
+      100 + (offsetMultiplier * 30),
+    );
+
+    setState(() {
+      _openPopups.add(_ImagePopupData(
+        id: '${widget.group.id}_${_popupIdCounter++}',
+        imageBytes: imageBytes,
+        imageName: imageName,
+        position: initialPosition,
+        imageWidth: imageWidth,
+        imageHeight: imageHeight,
+      ));
+    });
+  }
+
+  void _closePopup(String popupId) {
+    setState(() {
+      _openPopups.removeWhere((p) => p.id == popupId);
+    });
+  }
+
+  void _updatePopupPosition(String popupId, Offset delta) {
+    setState(() {
+      final popup = _openPopups.firstWhere((p) => p.id == popupId);
+      popup.position += delta;
+    });
+  }
+
+  void _bringToFront(String popupId) {
+    setState(() {
+      final index = _openPopups.indexWhere((p) => p.id == popupId);
+      if (index != -1 && index != _openPopups.length - 1) {
+        final popup = _openPopups.removeAt(index);
+        _openPopups.add(popup);
+      }
+    });
+  }
+
+  Widget _buildStatusSection(BuildContext context, ImageProcessingState? state, int imageCount) {
     if (state == null) {
       return _buildStatusRow(
         icon: Icons.pending,
@@ -287,9 +382,9 @@ class _GroupProcessingView extends ConsumerWidget {
       case ProcessingStatus.completed:
         return _EditableHexColor(
           hexColor: state.extractedHex!,
-          groupId: group.id,
+          groupId: widget.group.id,
           onColorChanged: (newHex) {
-            ref.read(processingControllerProvider).recolorizeGroup(group.id, newHex);
+            ref.read(processingControllerProvider).recolorizeGroup(widget.group.id, newHex);
           },
         );
       case ProcessingStatus.error:
@@ -359,9 +454,9 @@ class _GroupProcessingView extends ConsumerWidget {
     );
   }
 
-  Widget _buildResultSection(BuildContext context, ImageProcessingState? state, ColorizedImage? colorizedImage, WidgetRef ref) {
+  Widget _buildResultSection(BuildContext context, ImageProcessingState? state, ColorizedImage? colorizedImage) {
     if (colorizedImage != null) {
-      return _ResultWithSliders(groupId: group.id, colorizedImage: colorizedImage);
+      return _ResultWithSliders(groupId: widget.group.id, colorizedImage: colorizedImage);
     }
 
     return Container(
@@ -383,81 +478,129 @@ class _GroupProcessingView extends ConsumerWidget {
     );
   }
 
-  void _showImagePopup(BuildContext context, Uint8List imageBytes, String imageName) {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Stack(
-          children: [
-            // Image container
-            Container(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.8,
-                maxHeight: MediaQuery.of(context).size.height * 0.8,
-              ),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Header with title and close button
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            imageName,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () => Navigator.of(context).pop(),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          iconSize: 20,
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Image
-                  Flexible(
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
-                      child: InteractiveViewer(
-                        minScale: 0.5,
-                        maxScale: 4.0,
-                        child: Image.memory(
-                          imageBytes,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Color _hexToColor(String hex) {
     final hexCode = hex.replaceAll('#', '');
     return Color(int.parse('FF$hexCode', radix: 16));
+  }
+}
+
+/// Draggable image popup window
+class _DraggableImagePopup extends StatelessWidget {
+  final _ImagePopupData popup;
+  final VoidCallback onClose;
+  final ValueChanged<Offset> onDragUpdate;
+  final VoidCallback onBringToFront;
+
+  const _DraggableImagePopup({
+    super.key,
+    required this.popup,
+    required this.onClose,
+    required this.onDragUpdate,
+    required this.onBringToFront,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    const headerHeight = 40.0;
+    const maxWidthFactor = 0.8;
+    const maxHeightFactor = 0.8;
+
+    // Calculate popup size based on image dimensions
+    final maxWidth = screenSize.width * maxWidthFactor;
+    final maxHeight = screenSize.height * maxHeightFactor - headerHeight;
+
+    double popupWidth;
+    double popupHeight;
+
+    if (popup.imageWidth <= maxWidth && popup.imageHeight <= maxHeight) {
+      // Image fits within max constraints
+      popupWidth = popup.imageWidth.toDouble();
+      popupHeight = popup.imageHeight.toDouble();
+    } else {
+      // Scale to fit
+      final widthRatio = maxWidth / popup.imageWidth;
+      final heightRatio = maxHeight / popup.imageHeight;
+      final scale = widthRatio < heightRatio ? widthRatio : heightRatio;
+      popupWidth = popup.imageWidth * scale;
+      popupHeight = popup.imageHeight * scale;
+    }
+
+    return Positioned(
+      left: popup.position.dx,
+      top: popup.position.dy,
+      child: GestureDetector(
+        onTap: onBringToFront,
+        child: Material(
+          elevation: 8,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            width: popupWidth,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Draggable header
+                GestureDetector(
+                  onPanUpdate: (details) => onDragUpdate(details.delta),
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.move,
+                    child: Container(
+                      height: headerHeight,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              popup.imageName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: onClose,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            iconSize: 18,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                // Image
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
+                  child: SizedBox(
+                    width: popupWidth,
+                    height: popupHeight,
+                    child: InteractiveViewer(
+                      minScale: 0.5,
+                      maxScale: 4.0,
+                      child: Image.memory(
+                        popup.imageBytes,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
