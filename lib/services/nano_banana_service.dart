@@ -48,13 +48,9 @@ class NanoBananaService {
     // Composite 3 layers: background + colorized template + carton
     final finalImage = _composite3Layers(colorizedTemplate, useWhiteBackground);
 
-    // Encode based on background mode
-    final Uint8List outputBytes;
-    if (useWhiteBackground) {
-      outputBytes = Uint8List.fromList(img.encodeJpg(finalImage, quality: 95));
-    } else {
-      outputBytes = Uint8List.fromList(img.encodePng(finalImage));
-    }
+    // Always encode as PNG for quality preservation
+    // WebP conversion is handled by export_service
+    final Uint8List outputBytes = Uint8List.fromList(img.encodePng(finalImage));
 
     return ColorizedImage(
       id: _uuid.v4(),
@@ -116,12 +112,9 @@ class NanoBananaService {
     // Composite 3 layers: background + adjusted template + carton
     final finalImage = _composite3Layers(image, useWhiteBackground);
 
-    // Encode based on background mode
-    if (useWhiteBackground) {
-      return Uint8List.fromList(img.encodeJpg(finalImage, quality: 95));
-    } else {
-      return Uint8List.fromList(img.encodePng(finalImage));
-    }
+    // Always encode as PNG for quality preservation
+    // WebP conversion is handled by export_service
+    return Uint8List.fromList(img.encodePng(finalImage));
   }
 
   img.Image _adjustHue(img.Image source, double hueShift) {

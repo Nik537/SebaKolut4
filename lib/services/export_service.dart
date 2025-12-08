@@ -5,13 +5,19 @@ import 'package:file_saver/file_saver.dart';
 import 'package:image/image.dart' as img;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../providers/export_provider.dart';
+import 'webp_encoder_service.dart';
 
 class ExportService {
   static const int exportSize = 1080;
   static const int maxFileSizeBytes = 150 * 1024; // 150KB
 
-  /// Prepare image for export as JPEG: resize to 1080x1080 and compress to stay under 150KB
-  Future<Uint8List> _prepareForExport(Uint8List imageBytes) async {
+  final WebpEncoderService _webpEncoder = WebpEncoderService();
+
+  /// Prepare image for export as WebP: resize to 1080x1080 and compress to stay under 150KB
+  Future<Uint8List> _prepareForExport(
+    Uint8List imageBytes, {
+    required bool preserveTransparency,
+  }) async {
     var image = img.decodeImage(imageBytes);
     if (image == null) {
       throw ExportException('Failed to decode image');
@@ -27,21 +33,23 @@ class ExportService {
       );
     }
 
-    // Encode as JPEG, reducing quality until under 150KB
-    int quality = 95;
-    Uint8List encoded = Uint8List.fromList(img.encodeJpg(image, quality: quality));
+    // Encode as PNG first (lossless intermediate format)
+    final pngBytes = Uint8List.fromList(img.encodePng(image));
 
-    while (encoded.length > maxFileSizeBytes && quality > 10) {
-      quality -= 5;
-      encoded = Uint8List.fromList(img.encodeJpg(image, quality: quality));
-    }
+    // Convert to WebP
+    final webpBytes = await _webpEncoder.encodeToWebp(
+      pngBytes: pngBytes,
+      preserveTransparency: preserveTransparency,
+      maxBytes: maxFileSizeBytes,
+      targetSize: exportSize,
+    );
 
-    return encoded;
+    return webpBytes;
   }
 
   /// Export images with both white and transparent background versions
-  /// File naming: [hex]_white.jpg and [hex]_transparent.jpg
-  /// Note: JPEG format used for 150KB size limit (transparency not preserved)
+  /// File naming: [hex]_white.webp and [hex]_transparent.webp
+  /// WebP format with lossy (white) and lossless (transparent) compression
   Future<void> exportDualBackground({
     required List<ExportImageData> images,
   }) async {
@@ -50,22 +58,28 @@ class ExportService {
       for (final imageData in images) {
         final hex = imageData.hexColor.replaceAll('#', '');
 
-        // Export white background version
-        final whiteConverted = await _prepareForExport(imageData.whiteBytes);
+        // Export white background version (lossy WebP)
+        final whiteConverted = await _prepareForExport(
+          imageData.whiteBytes,
+          preserveTransparency: false,
+        );
         await FileSaver.instance.saveFile(
-          name: '${hex}_white.jpg',
+          name: '${hex}_white.webp',
           bytes: whiteConverted,
-          ext: 'jpg',
-          mimeType: MimeType.jpeg,
+          ext: 'webp',
+          mimeType: MimeType.other,
         );
 
-        // Export transparent background version
-        final transparentConverted = await _prepareForExport(imageData.transparentBytes);
+        // Export transparent background version (lossless WebP with alpha)
+        final transparentConverted = await _prepareForExport(
+          imageData.transparentBytes,
+          preserveTransparency: true,
+        );
         await FileSaver.instance.saveFile(
-          name: '${hex}_transparent.jpg',
+          name: '${hex}_transparent.webp',
           bytes: transparentConverted,
-          ext: 'jpg',
-          mimeType: MimeType.jpeg,
+          ext: 'webp',
+          mimeType: MimeType.other,
         );
       }
     } else {
@@ -78,14 +92,20 @@ class ExportService {
         for (final imageData in images) {
           final hex = imageData.hexColor.replaceAll('#', '');
 
-          // Export white background version
-          final whiteConverted = await _prepareForExport(imageData.whiteBytes);
-          final whiteFile = File('$directory/${hex}_white.jpg');
+          // Export white background version (lossy WebP)
+          final whiteConverted = await _prepareForExport(
+            imageData.whiteBytes,
+            preserveTransparency: false,
+          );
+          final whiteFile = File('$directory/${hex}_white.webp');
           await whiteFile.writeAsBytes(whiteConverted);
 
-          // Export transparent background version
-          final transparentConverted = await _prepareForExport(imageData.transparentBytes);
-          final transparentFile = File('$directory/${hex}_transparent.jpg');
+          // Export transparent background version (lossless WebP with alpha)
+          final transparentConverted = await _prepareForExport(
+            imageData.transparentBytes,
+            preserveTransparency: true,
+          );
+          final transparentFile = File('$directory/${hex}_transparent.webp');
           await transparentFile.writeAsBytes(transparentConverted);
         }
       }
