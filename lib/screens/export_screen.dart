@@ -43,7 +43,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colorizedImages = ref.watch(colorizedImagesProvider);
+    final colorizedImages = ref.watch(selectedColorizedImagesProvider);
     final groups = ref.watch(groupsProvider);
 
     return Scaffold(
@@ -215,8 +215,11 @@ class _ExportPreviewCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final hexClean = image.appliedHex.replaceAll('#', '');
 
-    // Use adjusted image bytes instead of original
-    final adjustedBytesAsync = ref.watch(adjustedImageBytesProvider(image.groupId));
+    // Use adjusted image bytes for the specific generation
+    final adjustedBytesAsync = ref.watch(adjustedImageByGenerationProvider((
+      groupId: image.groupId,
+      generationIndex: image.generationIndex,
+    )));
 
     return Card(
       child: Column(

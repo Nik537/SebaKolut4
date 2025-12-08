@@ -103,6 +103,24 @@ final colorizedImagesByGroupProvider =
 final selectedGenerationProvider =
     StateProvider.family<int, String>((ref, groupId) => 0);
 
+// Get only the selected colorized images (one per group) for export
+final selectedColorizedImagesProvider = Provider<List<ColorizedImage>>((ref) {
+  final groups = ref.watch(groupsProvider);
+  final colorized = ref.watch(colorizedImagesProvider);
+
+  final selected = <ColorizedImage>[];
+  for (final group in groups) {
+    final selectedGeneration = ref.watch(selectedGenerationProvider(group.id));
+    final image = colorized.where(
+      (img) => img.groupId == group.id && img.generationIndex == selectedGeneration,
+    ).firstOrNull;
+    if (image != null) {
+      selected.add(image);
+    }
+  }
+  return selected;
+});
+
 // Get colorized image for a specific group and generation
 final colorizedImageByGenerationProvider =
     Provider.family<ColorizedImage?, ({String groupId, int generationIndex})>((ref, params) {

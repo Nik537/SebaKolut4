@@ -50,63 +50,7 @@ class WebpEncoderService {
     final inputPath = '${tempDir.path}/webp_input_$timestamp.png';
     final outputPath = '${tempDir.path}/webp_output_$timestamp.webp';
 
-    try {
-      // Write PNG to temp file
-      final inputFile = File(inputPath);
-      await inputFile.writeAsBytes(pngBytes);
-
-      // Find cwebp.exe (next to the main executable)
-      final cwebpPath = await _findCwebpPath();
-
-      // Build cwebp arguments
-      final args = <String>[];
-
-      if (preserveTransparency) {
-        // Lossless with alpha preservation
-        args.addAll(['-lossless', '-exact']);
-      } else {
-        // Lossy with size target
-        args.addAll(['-q', '95', '-size', maxBytes.toString()]);
-      }
-
-      // Add resize if needed (cwebp will handle this)
-      args.addAll(['-resize', targetSize.toString(), targetSize.toString()]);
-
-      // Add input and output
-      args.addAll([inputPath, '-o', outputPath]);
-
-      // Run cwebp
-      final result = await Process.run(cwebpPath, args);
-
-      if (result.exitCode != 0) {
-        throw WebpEncoderException(
-          'cwebp failed with exit code ${result.exitCode}: ${result.stderr}',
-        );
-      }
-
-      // Read output WebP file
-      final outputFile = File(outputPath);
-      if (!await outputFile.exists()) {
-        throw WebpEncoderException('cwebp did not produce output file');
-      }
-
-      final webpBytes = await outputFile.readAsBytes();
-
-      // For lossy encoding, check if we need to reduce quality further
-      if (!preserveTransparency && webpBytes.length > maxBytes) {
-        // Try with lower quality
-        return _encodeWithReducedQuality(
-          inputPath: inputPath,
-          outputPath: outputPath,
-          cwebpPath: cwebpPath,
-          maxBytes: maxBytes,
-          targetSize: targetSize,
-        );
-      }
-
-      return webpBytes;
-    } finally {
-      // Cleanup temp files
+    Future<void> cleanup() async {
       try {
         final inputFile = File(inputPath);
         if (await inputFile.exists()) {
@@ -119,6 +63,72 @@ class WebpEncoderService {
       } catch (_) {
         // Ignore cleanup errors
       }
+    }
+
+    try {
+      // Write PNG to temp file
+      final inputFile = File(inputPath);
+      await inputFile.writeAsBytes(pngBytes);
+
+      // Find cwebp.exe (next to the main executable)
+      final cwebpPath = await _findCwebpPath();
+
+      // Build cwebp arguments
+      final args = <String>[];
+
+      if (preserveTransparency) {
+        // Lossless with alpha preservation - use high quality lossy instead
+        // as lossless can produce very large files
+        args.addAll(['-q', '95', '-alpha_q', '100']);
+      } else {
+        // Lossy with quality target
+        args.addAll(['-q', '90']);
+      }
+
+      // Add resize if needed (cwebp will handle this)
+      args.addAll(['-resize', targetSize.toString(), targetSize.toString()]);
+
+      // Add input and output
+      args.addAll([inputPath, '-o', outputPath]);
+
+      // Run cwebp
+      final result = await Process.run(cwebpPath, args);
+
+      if (result.exitCode != 0) {
+        final stderrStr = result.stderr?.toString() ?? '';
+        final stdoutStr = result.stdout?.toString() ?? '';
+        throw WebpEncoderException(
+          'cwebp failed (exit ${result.exitCode}): $stderrStr $stdoutStr',
+        );
+      }
+
+      // Read output WebP file
+      final outputFile = File(outputPath);
+      if (!await outputFile.exists()) {
+        throw WebpEncoderException('cwebp did not produce output file');
+      }
+
+      final webpBytes = await outputFile.readAsBytes();
+
+      // For non-transparent encoding, check if we need to reduce quality further
+      if (!preserveTransparency && webpBytes.length > maxBytes) {
+        // Try with lower quality - don't cleanup yet, _encodeWithReducedQuality needs the input
+        final result = await _encodeWithReducedQuality(
+          inputPath: inputPath,
+          outputPath: outputPath,
+          cwebpPath: cwebpPath,
+          maxBytes: maxBytes,
+          targetSize: targetSize,
+        );
+        await cleanup();
+        return result;
+      }
+
+      await cleanup();
+      return webpBytes;
+    } catch (e) {
+      await cleanup();
+      rethrow;
     }
   }
 
