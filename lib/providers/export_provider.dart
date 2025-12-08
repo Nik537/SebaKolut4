@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/export_service.dart';
 import 'processing_provider.dart';
+import 'groups_provider.dart';
 
 final exportServiceProvider = Provider<ExportService>((ref) => ExportService());
 
@@ -16,16 +17,24 @@ class ExportController {
   ExportController(this._ref);
 
   Future<void> exportAll() async {
-    final colorizedImages = _ref.read(colorizedImagesProvider);
+    final groups = _ref.read(groupsProvider);
     final exportService = _ref.read(exportServiceProvider);
     final nanoBananaService = _ref.read(nanoBananaServiceProvider);
+    final colorizedNotifier = _ref.read(colorizedImagesProvider.notifier);
 
-    // Prepare export data: for each image, generate both white and transparent versions
+    // Prepare export data: for each group, export only the selected generation
     final exportData = <ExportImageData>[];
 
-    for (final image in colorizedImages) {
+    for (final group in groups) {
+      // Get the selected generation for this group
+      final selectedGeneration = _ref.read(selectedGenerationProvider(group.id));
+
+      // Get the colorized image for this group's selected generation
+      final image = colorizedNotifier.getByGroupAndGeneration(group.id, selectedGeneration);
+      if (image == null) continue;
+
       // Use generation-specific adjustment key
-      final adjustmentKey = '${image.groupId}:${image.generationIndex}';
+      final adjustmentKey = '${group.id}:$selectedGeneration';
       final adjustments = _ref.read(groupAdjustmentsProvider(adjustmentKey));
 
       // Generate white background version
