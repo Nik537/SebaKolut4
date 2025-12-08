@@ -648,41 +648,44 @@ class _ResultWithSliders extends ConsumerWidget {
           ),
         ),
         const SizedBox(width: 24),
-        // Sliders (50% width)
+        // Adjustment controls (50% width)
         Expanded(
           flex: 1,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _EditableSlider(
+              _AdjustmentButtons(
                 label: 'Hue',
                 value: adjustments.hue,
                 min: -0.2,
                 max: 0.2,
-                onChangeEnd: (v) => ref.read(imageAdjustmentsProvider.notifier).updateHue(groupId, v),
+                step: 0.01,
+                onChanged: (v) => ref.read(imageAdjustmentsProvider.notifier).updateHue(groupId, v),
               ),
-              const SizedBox(height: 16),
-              _EditableSlider(
+              const SizedBox(height: 12),
+              _AdjustmentButtons(
                 label: 'Saturation',
                 value: adjustments.saturation,
                 min: -0.3,
                 max: 0.3,
-                onChangeEnd: (v) => ref.read(imageAdjustmentsProvider.notifier).updateSaturation(groupId, v),
+                step: 0.01,
+                onChanged: (v) => ref.read(imageAdjustmentsProvider.notifier).updateSaturation(groupId, v),
               ),
-              const SizedBox(height: 16),
-              _EditableSlider(
+              const SizedBox(height: 12),
+              _AdjustmentButtons(
                 label: 'Brightness',
                 value: adjustments.brightness,
                 min: -0.3,
                 max: 0.3,
-                onChangeEnd: (v) => ref.read(imageAdjustmentsProvider.notifier).updateBrightness(groupId, v),
+                step: 0.01,
+                onChanged: (v) => ref.read(imageAdjustmentsProvider.notifier).updateBrightness(groupId, v),
               ),
-              const SizedBox(height: 24),
-              // Reset button
+              const SizedBox(height: 16),
+              // Reset all button
               TextButton.icon(
                 onPressed: () => ref.read(imageAdjustmentsProvider.notifier).reset(groupId),
                 icon: const Icon(Icons.refresh, size: 18),
-                label: const Text('Reset Adjustments'),
+                label: const Text('Reset All'),
               ),
             ],
           ),
@@ -693,27 +696,29 @@ class _ResultWithSliders extends ConsumerWidget {
 
 }
 
-/// Editable slider with local state for smooth dragging and keyboard input
-class _EditableSlider extends StatefulWidget {
+/// Adjustment control with plus, minus, and reset buttons
+class _AdjustmentButtons extends StatefulWidget {
   final String label;
   final double value;
   final double min;
   final double max;
-  final ValueChanged<double> onChangeEnd;
+  final double step;
+  final ValueChanged<double> onChanged;
 
-  const _EditableSlider({
+  const _AdjustmentButtons({
     required this.label,
     required this.value,
     required this.min,
     required this.max,
-    required this.onChangeEnd,
+    this.step = 0.01,
+    required this.onChanged,
   });
 
   @override
-  State<_EditableSlider> createState() => _EditableSliderState();
+  State<_AdjustmentButtons> createState() => _AdjustmentButtonsState();
 }
 
-class _EditableSliderState extends State<_EditableSlider> {
+class _AdjustmentButtonsState extends State<_AdjustmentButtons> {
   late double _localValue;
   late TextEditingController _textController;
   final FocusNode _focusNode = FocusNode();
@@ -728,9 +733,8 @@ class _EditableSliderState extends State<_EditableSlider> {
   }
 
   @override
-  void didUpdateWidget(_EditableSlider oldWidget) {
+  void didUpdateWidget(_AdjustmentButtons oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Update local value when provider value changes (e.g., from reset)
     if (oldWidget.value != widget.value && !_isEditing) {
       _localValue = widget.value;
       _textController.text = _localValue.toStringAsFixed(2);
@@ -762,73 +766,122 @@ class _EditableSliderState extends State<_EditableSlider> {
         _localValue = clamped;
         _textController.text = clamped.toStringAsFixed(2);
       });
-      widget.onChangeEnd(clamped);
+      widget.onChanged(clamped);
     } else {
-      // Invalid input, revert to current value
       _textController.text = _localValue.toStringAsFixed(2);
     }
   }
 
+  void _increment() {
+    final newValue = (_localValue + widget.step).clamp(widget.min, widget.max);
+    setState(() {
+      _localValue = newValue;
+      _textController.text = newValue.toStringAsFixed(2);
+    });
+    widget.onChanged(newValue);
+  }
+
+  void _decrement() {
+    final newValue = (_localValue - widget.step).clamp(widget.min, widget.max);
+    setState(() {
+      _localValue = newValue;
+      _textController.text = newValue.toStringAsFixed(2);
+    });
+    widget.onChanged(newValue);
+  }
+
+  void _reset() {
+    setState(() {
+      _localValue = 0.0;
+      _textController.text = '0.00';
+    });
+    widget.onChanged(0.0);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              widget.label,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
+        SizedBox(
+          width: 80,
+          child: Text(
+            widget.label,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
             ),
-            SizedBox(
-              width: 60,
-              child: TextField(
-                controller: _textController,
-                focusNode: _focusNode,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontFamily: 'monospace',
-                  color: Colors.grey.shade600,
-                ),
-                textAlign: TextAlign.right,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'^-?\d*\.?\d*')),
-                ],
-                decoration: const InputDecoration(
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                  border: OutlineInputBorder(),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.blue, width: 1),
-                  ),
-                ),
-                onSubmitted: (_) => _submitTextValue(),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        SliderTheme(
-          data: SliderTheme.of(context).copyWith(
-            trackHeight: 4,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
           ),
-          child: Slider(
-            value: _localValue,
-            min: widget.min,
-            max: widget.max,
-            onChanged: (v) {
-              setState(() {
-                _localValue = v;
-                _textController.text = v.toStringAsFixed(2);
-              });
-            },
-            onChangeEnd: widget.onChangeEnd,
+        ),
+        IconButton(
+          onPressed: _decrement,
+          icon: const Icon(Icons.remove),
+          iconSize: 20,
+          padding: const EdgeInsets.all(4),
+          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          style: IconButton.styleFrom(
+            backgroundColor: Colors.grey.shade200,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 60,
+          child: TextField(
+            controller: _textController,
+            focusNode: _focusNode,
+            style: TextStyle(
+              fontSize: 12,
+              fontFamily: 'monospace',
+              color: Colors.grey.shade700,
+            ),
+            textAlign: TextAlign.center,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^-?\d*\.?\d*')),
+            ],
+            decoration: InputDecoration(
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: const BorderSide(color: Colors.blue, width: 1),
+              ),
+            ),
+            onSubmitted: (_) => _submitTextValue(),
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          onPressed: _increment,
+          icon: const Icon(Icons.add),
+          iconSize: 20,
+          padding: const EdgeInsets.all(4),
+          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          style: IconButton.styleFrom(
+            backgroundColor: Colors.grey.shade200,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        IconButton(
+          onPressed: _reset,
+          icon: const Icon(Icons.refresh),
+          iconSize: 18,
+          padding: const EdgeInsets.all(4),
+          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          tooltip: 'Reset to 0',
+          style: IconButton.styleFrom(
+            backgroundColor: Colors.orange.shade100,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(6),
+            ),
           ),
         ),
       ],
