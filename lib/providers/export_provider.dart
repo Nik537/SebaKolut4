@@ -32,6 +32,7 @@ class ExportController {
         hue: adjustments.hue,
         saturation: adjustments.saturation,
         brightness: adjustments.brightness,
+        contrast: adjustments.contrast,
         sharpness: adjustments.sharpness,
         useWhiteBackground: true,
       );
@@ -42,6 +43,7 @@ class ExportController {
         hue: adjustments.hue,
         saturation: adjustments.saturation,
         brightness: adjustments.brightness,
+        contrast: adjustments.contrast,
         sharpness: adjustments.sharpness,
         useWhiteBackground: false,
       );

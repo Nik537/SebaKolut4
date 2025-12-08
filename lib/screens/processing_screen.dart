@@ -680,6 +680,15 @@ class _ResultWithSliders extends ConsumerWidget {
                 step: 0.01,
                 onChanged: (v) => ref.read(imageAdjustmentsProvider.notifier).updateBrightness(groupId, v),
               ),
+              const SizedBox(height: 12),
+              _AdjustmentButtons(
+                label: 'Contrast',
+                value: adjustments.contrast,
+                min: -0.3,
+                max: 0.3,
+                step: 0.01,
+                onChanged: (v) => ref.read(imageAdjustmentsProvider.notifier).updateContrast(groupId, v),
+              ),
               const SizedBox(height: 16),
               // Reset all button
               TextButton.icon(

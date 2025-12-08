@@ -288,12 +288,14 @@ class ImageAdjustments {
   final double hue;
   final double saturation;
   final double brightness;
+  final double contrast;
   final double sharpness;
 
   const ImageAdjustments({
     this.hue = 0.0,
     this.saturation = 0.0,
     this.brightness = 0.0,
+    this.contrast = 0.0,
     this.sharpness = 0.0,
   });
 
@@ -301,17 +303,19 @@ class ImageAdjustments {
     double? hue,
     double? saturation,
     double? brightness,
+    double? contrast,
     double? sharpness,
   }) {
     return ImageAdjustments(
       hue: hue ?? this.hue,
       saturation: saturation ?? this.saturation,
       brightness: brightness ?? this.brightness,
+      contrast: contrast ?? this.contrast,
       sharpness: sharpness ?? this.sharpness,
     );
   }
 
-  bool get hasAdjustments => hue != 0 || saturation != 0 || brightness != 0 || sharpness != 0;
+  bool get hasAdjustments => hue != 0 || saturation != 0 || brightness != 0 || contrast != 0 || sharpness != 0;
 }
 
 // Per-group adjustments state
@@ -340,6 +344,11 @@ class ImageAdjustmentsNotifier extends StateNotifier<Map<String, ImageAdjustment
   void updateBrightness(String groupId, double value) {
     final current = state[groupId] ?? const ImageAdjustments();
     state = {...state, groupId: current.copyWith(brightness: value)};
+  }
+
+  void updateContrast(String groupId, double value) {
+    final current = state[groupId] ?? const ImageAdjustments();
+    state = {...state, groupId: current.copyWith(contrast: value)};
   }
 
   void updateSharpness(String groupId, double value) {
@@ -376,6 +385,7 @@ final adjustedImageBytesProvider =
     hue: adjustments.hue,
     saturation: adjustments.saturation,
     brightness: adjustments.brightness,
+    contrast: adjustments.contrast,
     sharpness: adjustments.sharpness,
     useWhiteBackground: true,
   );

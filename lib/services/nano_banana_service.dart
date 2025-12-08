@@ -74,6 +74,7 @@ class NanoBananaService {
     required double hue,        // -1.0 to 1.0 (0 = no change)
     required double saturation, // -1.0 to 1.0 (0 = no change)
     required double brightness, // -1.0 to 1.0 (0 = no change)
+    required double contrast,   // -1.0 to 1.0 (0 = no change)
     required double sharpness,  // 0.0 to 1.0 (0 = no change)
     bool useWhiteBackground = true,
   }) async {
@@ -100,6 +101,11 @@ class NanoBananaService {
     // Apply brightness adjustment (preserving alpha)
     if (brightness != 0) {
       image = _adjustBrightness(image, brightness);
+    }
+
+    // Apply contrast adjustment (preserving alpha)
+    if (contrast != 0) {
+      image = _adjustContrast(image, contrast);
     }
 
     // Apply sharpness adjustment (preserving alpha)
@@ -180,6 +186,7 @@ class NanoBananaService {
   img.Image _adjustBrightness(img.Image source, double brightnessShift) {
     final result = img.Image.from(source);
     // brightnessShift is -1.0 to 1.0
+    // Adjust lightness in HSL space to affect only brightness, not contrast
 
     for (int y = 0; y < result.height; y++) {
       for (int x = 0; x < result.width; x++) {
@@ -189,18 +196,45 @@ class NanoBananaService {
         final b = pixel.b.toInt();
         final a = pixel.a.toInt();
 
-        int newR, newG, newB;
+        // Convert RGB to HSL
+        final hsl = _rgbToHsl(r, g, b);
+
+        // Adjust lightness
         if (brightnessShift > 0) {
-          // Brighten: move towards 255
-          newR = (r + (255 - r) * brightnessShift).round().clamp(0, 255);
-          newG = (g + (255 - g) * brightnessShift).round().clamp(0, 255);
-          newB = (b + (255 - b) * brightnessShift).round().clamp(0, 255);
+          // Brighten: move lightness towards 1.0
+          hsl[2] = hsl[2] + (1.0 - hsl[2]) * brightnessShift;
         } else {
-          // Darken: move towards 0
-          newR = (r * (1 + brightnessShift)).round().clamp(0, 255);
-          newG = (g * (1 + brightnessShift)).round().clamp(0, 255);
-          newB = (b * (1 + brightnessShift)).round().clamp(0, 255);
+          // Darken: move lightness towards 0.0
+          hsl[2] = hsl[2] * (1.0 + brightnessShift);
         }
+        hsl[2] = hsl[2].clamp(0.0, 1.0);
+
+        // Convert back to RGB
+        final rgb = _hslToRgb(hsl[0], hsl[1], hsl[2]);
+        result.setPixel(x, y, img.ColorRgba8(rgb[0], rgb[1], rgb[2], a));
+      }
+    }
+    return result;
+  }
+
+  img.Image _adjustContrast(img.Image source, double contrastShift) {
+    final result = img.Image.from(source);
+    // contrastShift is -1.0 to 1.0
+    // Formula: newValue = ((value - 128) * (1 + contrastShift)) + 128
+
+    final factor = 1.0 + contrastShift;
+
+    for (int y = 0; y < result.height; y++) {
+      for (int x = 0; x < result.width; x++) {
+        final pixel = result.getPixel(x, y);
+        final r = pixel.r.toInt();
+        final g = pixel.g.toInt();
+        final b = pixel.b.toInt();
+        final a = pixel.a.toInt();
+
+        final newR = ((r - 128) * factor + 128).round().clamp(0, 255);
+        final newG = ((g - 128) * factor + 128).round().clamp(0, 255);
+        final newB = ((b - 128) * factor + 128).round().clamp(0, 255);
 
         result.setPixel(x, y, img.ColorRgba8(newR, newG, newB, a));
       }
