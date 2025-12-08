@@ -809,88 +809,117 @@ class _AdjustmentButtonsState extends State<_AdjustmentButtons> {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          width: 80,
-          child: Text(
-            widget.label,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-        IconButton(
-          onPressed: _decrement,
-          icon: const Icon(Icons.remove),
-          iconSize: 20,
-          padding: const EdgeInsets.all(4),
-          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-          style: IconButton.styleFrom(
-            backgroundColor: Colors.grey.shade200,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(6),
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 60,
-          child: TextField(
-            controller: _textController,
-            focusNode: _focusNode,
-            style: TextStyle(
-              fontSize: 12,
-              fontFamily: 'monospace',
-              color: Colors.grey.shade700,
-            ),
-            textAlign: TextAlign.center,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'^-?\d*\.?\d*')),
-            ],
-            decoration: InputDecoration(
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(6),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(6),
-                borderSide: const BorderSide(color: Colors.blue, width: 1),
+        // Button row
+        Row(
+          children: [
+            SizedBox(
+              width: 80,
+              child: Text(
+                widget.label,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
-            onSubmitted: (_) => _submitTextValue(),
-          ),
-        ),
-        const SizedBox(width: 8),
-        IconButton(
-          onPressed: _increment,
-          icon: const Icon(Icons.add),
-          iconSize: 20,
-          padding: const EdgeInsets.all(4),
-          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-          style: IconButton.styleFrom(
-            backgroundColor: Colors.grey.shade200,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(6),
+            IconButton(
+              onPressed: _decrement,
+              icon: const Icon(Icons.remove),
+              iconSize: 20,
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.grey.shade200,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
             ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        IconButton(
-          onPressed: _reset,
-          icon: const Icon(Icons.refresh),
-          iconSize: 18,
-          padding: const EdgeInsets.all(4),
-          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-          tooltip: 'Reset to 0',
-          style: IconButton.styleFrom(
-            backgroundColor: Colors.orange.shade100,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(6),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 60,
+              child: TextField(
+                controller: _textController,
+                focusNode: _focusNode,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: 'monospace',
+                  color: Colors.grey.shade700,
+                ),
+                textAlign: TextAlign.center,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'^-?\d*\.?\d*')),
+                ],
+                decoration: InputDecoration(
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: const BorderSide(color: Colors.blue, width: 1),
+                  ),
+                ),
+                onSubmitted: (_) => _submitTextValue(),
+              ),
             ),
+            const SizedBox(width: 8),
+            IconButton(
+              onPressed: _increment,
+              icon: const Icon(Icons.add),
+              iconSize: 20,
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.grey.shade200,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            IconButton(
+              onPressed: _reset,
+              icon: const Icon(Icons.refresh),
+              iconSize: 18,
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              tooltip: 'Reset to 0',
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.orange.shade100,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+            ),
+          ],
+        ),
+        // Slider below buttons
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 4,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+          ),
+          child: Slider(
+            value: _localValue,
+            min: widget.min,
+            max: widget.max,
+            onChanged: (v) {
+              // Update local state only for smooth dragging
+              setState(() {
+                _localValue = v;
+                _textController.text = v.toStringAsFixed(2);
+              });
+            },
+            onChangeEnd: (v) {
+              // Trigger provider update when slider is released
+              widget.onChanged(v);
+            },
           ),
         ),
       ],
