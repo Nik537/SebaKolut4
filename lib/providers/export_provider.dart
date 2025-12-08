@@ -24,7 +24,9 @@ class ExportController {
     final exportData = <ExportImageData>[];
 
     for (final image in colorizedImages) {
-      final adjustments = _ref.read(groupAdjustmentsProvider(image.groupId));
+      // Use generation-specific adjustment key
+      final adjustmentKey = '${image.groupId}:${image.generationIndex}';
+      final adjustments = _ref.read(groupAdjustmentsProvider(adjustmentKey));
 
       // Generate white background version
       final whiteBytes = await nanoBananaService.applyAdjustments(
@@ -56,6 +58,53 @@ class ExportController {
     }
 
     await exportService.exportDualBackground(images: exportData);
+  }
+
+  /// Export a single generation from a specific group
+  Future<void> exportSingleGeneration(String groupId, int generationIndex) async {
+    final colorizedNotifier = _ref.read(colorizedImagesProvider.notifier);
+    final colorizedImage = colorizedNotifier.getByGroupAndGeneration(groupId, generationIndex);
+
+    if (colorizedImage == null) {
+      throw Exception('No colorized image found for group $groupId, generation $generationIndex');
+    }
+
+    final exportService = _ref.read(exportServiceProvider);
+    final nanoBananaService = _ref.read(nanoBananaServiceProvider);
+
+    // Use generation-specific adjustment key
+    final adjustmentKey = '$groupId:$generationIndex';
+    final adjustments = _ref.read(groupAdjustmentsProvider(adjustmentKey));
+
+    // Generate white background version
+    final whiteBytes = await nanoBananaService.applyAdjustments(
+      baseColorizedBytes: colorizedImage.baseColorizedBytes,
+      hue: adjustments.hue,
+      saturation: adjustments.saturation,
+      brightness: adjustments.brightness,
+      contrast: adjustments.contrast,
+      sharpness: adjustments.sharpness,
+      useWhiteBackground: true,
+    );
+
+    // Generate transparent background version
+    final transparentBytes = await nanoBananaService.applyAdjustments(
+      baseColorizedBytes: colorizedImage.baseColorizedBytes,
+      hue: adjustments.hue,
+      saturation: adjustments.saturation,
+      brightness: adjustments.brightness,
+      contrast: adjustments.contrast,
+      sharpness: adjustments.sharpness,
+      useWhiteBackground: false,
+    );
+
+    final exportData = ExportImageData(
+      hexColor: colorizedImage.appliedHex,
+      whiteBytes: whiteBytes,
+      transparentBytes: transparentBytes,
+    );
+
+    await exportService.exportDualBackground(images: [exportData]);
   }
 }
 

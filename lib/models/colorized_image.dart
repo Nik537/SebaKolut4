@@ -8,6 +8,7 @@ class ColorizedImage {
   final Uint8List bytes;
   final Uint8List baseColorizedBytes; // Colorized image BEFORE carton overlay
   final DateTime createdAt;
+  final int generationIndex; // 0, 1, or 2 for Generation 1, 2, 3
 
   const ColorizedImage({
     required this.id,
@@ -17,6 +18,7 @@ class ColorizedImage {
     required this.bytes,
     required this.baseColorizedBytes,
     required this.createdAt,
+    this.generationIndex = 0,
   });
 
   ColorizedImage copyWith({
@@ -27,6 +29,7 @@ class ColorizedImage {
     Uint8List? bytes,
     Uint8List? baseColorizedBytes,
     DateTime? createdAt,
+    int? generationIndex,
   }) {
     return ColorizedImage(
       id: id ?? this.id,
@@ -36,6 +39,7 @@ class ColorizedImage {
       bytes: bytes ?? this.bytes,
       baseColorizedBytes: baseColorizedBytes ?? this.baseColorizedBytes,
       createdAt: createdAt ?? this.createdAt,
+      generationIndex: generationIndex ?? this.generationIndex,
     );
   }
 

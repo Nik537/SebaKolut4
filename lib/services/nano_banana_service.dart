@@ -24,6 +24,7 @@ class NanoBananaService {
     required String hexColor,
     required String sourceImageId,
     required String groupId,
+    int generationIndex = 0,
     bool useWhiteBackground = true,
   }) async {
     if (!_isInitialized) {
@@ -60,6 +61,7 @@ class NanoBananaService {
       bytes: outputBytes,
       baseColorizedBytes: baseColorizedBytes,
       createdAt: DateTime.now(),
+      generationIndex: generationIndex,
     );
   }
 

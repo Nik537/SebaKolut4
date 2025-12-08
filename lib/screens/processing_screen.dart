@@ -193,23 +193,55 @@ class _GroupProcessingView extends ConsumerStatefulWidget {
   ConsumerState<_GroupProcessingView> createState() => _GroupProcessingViewState();
 }
 
-class _GroupProcessingViewState extends ConsumerState<_GroupProcessingView> {
+class _GroupProcessingViewState extends ConsumerState<_GroupProcessingView>
+    with SingleTickerProviderStateMixin {
   final List<_ImagePopupData> _openPopups = [];
   int _popupIdCounter = 0;
+  late TabController _generationTabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _generationTabController = TabController(length: 3, vsync: this);
+    // Sync with provider
+    _generationTabController.addListener(_onTabChanged);
+  }
+
+  @override
+  void dispose() {
+    _generationTabController.removeListener(_onTabChanged);
+    _generationTabController.dispose();
+    super.dispose();
+  }
+
+  void _onTabChanged() {
+    if (!_generationTabController.indexIsChanging) {
+      ref.read(selectedGenerationProvider(widget.group.id).notifier).state =
+          _generationTabController.index;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final allImages = ref.watch(importedImagesProvider);
     final processingStates = ref.watch(imageProcessingStateProvider);
     final colorizedImages = ref.watch(colorizedImagesByGroupProvider(widget.group.id));
+    final selectedGeneration = ref.watch(selectedGenerationProvider(widget.group.id));
+    final isProcessing = ref.watch(isProcessingProvider);
 
     final groupImages = allImages.where((img) => widget.group.imageIds.contains(img.id)).toList();
 
     // Get group-level state from first image (all images in group share same state)
     final groupState = groupImages.isNotEmpty ? processingStates[groupImages.first.id] : null;
 
-    // Get the single colorized result for this group
-    final colorizedImage = colorizedImages.isNotEmpty ? colorizedImages.first : null;
+    // Get the colorized image for the selected generation
+    final colorizedImage = colorizedImages.isNotEmpty
+        ? colorizedImages.where((img) => img.generationIndex == selectedGeneration).firstOrNull
+        : null;
+
+    // Check generation counts for UI decisions
+    final hasGenerations = colorizedImages.isNotEmpty;
+    final hasMultipleGenerations = colorizedImages.length > 1;
 
     return Stack(
       children: [
@@ -219,14 +251,32 @@ class _GroupProcessingViewState extends ConsumerState<_GroupProcessingView> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Source Images Section
-              Text(
-                'Source Images (${groupImages.length})',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
+              // Source Images Section with Regenerate button
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Source Images (${groupImages.length})',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  if (hasGenerations && !isProcessing)
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        ref.read(processingControllerProvider).regenerateGroup(widget.group.id);
+                      },
+                      icon: const Icon(Icons.refresh, size: 18),
+                      label: const Text('Regenerate'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 8),
               SizedBox(
@@ -261,6 +311,47 @@ class _GroupProcessingViewState extends ConsumerState<_GroupProcessingView> {
               _buildStatusSection(context, groupState, groupImages.length),
               const SizedBox(height: 24),
 
+              // Generation tabs (only show when we have multiple generations)
+              if (hasMultipleGenerations) ...[
+                Text(
+                  'Generations',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: TabBar(
+                    controller: _generationTabController,
+                    labelColor: Theme.of(context).colorScheme.primary,
+                    unselectedLabelColor: Colors.grey.shade600,
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    indicator: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                    tabs: [
+                      _buildGenerationTab(colorizedImages, 0),
+                      _buildGenerationTab(colorizedImages, 1),
+                      _buildGenerationTab(colorizedImages, 2),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+
               // Result Section
               Text(
                 'Result',
@@ -271,7 +362,7 @@ class _GroupProcessingViewState extends ConsumerState<_GroupProcessingView> {
                 ),
               ),
               const SizedBox(height: 8),
-              _buildResultSection(context, groupState, colorizedImage),
+              _buildResultSection(context, groupState, colorizedImage, selectedGeneration),
             ],
           ),
         ),
@@ -284,6 +375,42 @@ class _GroupProcessingViewState extends ConsumerState<_GroupProcessingView> {
           onBringToFront: () => _bringToFront(popup.id),
         )),
       ],
+    );
+  }
+
+  Widget _buildGenerationTab(List<ColorizedImage> colorizedImages, int index) {
+    final image = colorizedImages.where((img) => img.generationIndex == index).firstOrNull;
+    final hexColor = image?.appliedHex ?? '---';
+    return Tab(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (image != null)
+              Container(
+                width: 16,
+                height: 16,
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: _hexToColor(image.appliedHex),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.grey.shade400, width: 0.5),
+                ),
+              ),
+            Text('Gen ${index + 1}'),
+            if (image != null)
+              Text(
+                ' ($hexColor)',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                  color: Colors.grey.shade600,
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -380,12 +507,11 @@ class _GroupProcessingViewState extends ConsumerState<_GroupProcessingView> {
           ],
         );
       case ProcessingStatus.completed:
-        return _EditableHexColor(
-          hexColor: state.extractedHex!,
-          groupId: widget.group.id,
-          onColorChanged: (newHex) {
-            ref.read(processingControllerProvider).recolorizeGroup(widget.group.id, newHex);
-          },
+        // Don't show editable hex here, it's shown per-generation in the result section
+        return _buildStatusRow(
+          icon: Icons.check_circle,
+          color: Colors.green,
+          text: 'Processing complete',
         );
       case ProcessingStatus.error:
         return _buildStatusRow(
@@ -454,9 +580,13 @@ class _GroupProcessingViewState extends ConsumerState<_GroupProcessingView> {
     );
   }
 
-  Widget _buildResultSection(BuildContext context, ImageProcessingState? state, ColorizedImage? colorizedImage) {
+  Widget _buildResultSection(BuildContext context, ImageProcessingState? state, ColorizedImage? colorizedImage, int generationIndex) {
     if (colorizedImage != null) {
-      return _ResultWithSliders(groupId: widget.group.id, colorizedImage: colorizedImage);
+      return _ResultWithSliders(
+        groupId: widget.group.id,
+        colorizedImage: colorizedImage,
+        generationIndex: generationIndex,
+      );
     }
 
     return Container(
@@ -607,102 +737,166 @@ class _DraggableImagePopup extends StatelessWidget {
 class _ResultWithSliders extends ConsumerWidget {
   final String groupId;
   final ColorizedImage colorizedImage;
+  final int generationIndex;
 
   const _ResultWithSliders({
     required this.groupId,
     required this.colorizedImage,
+    required this.generationIndex,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final adjustments = ref.watch(groupAdjustmentsProvider(groupId));
-    final adjustedImageAsync = ref.watch(adjustedImageBytesProvider(groupId));
+    // Use generation-specific adjustment key
+    final adjustmentKey = '$groupId:$generationIndex';
+    final adjustments = ref.watch(groupAdjustmentsProvider(adjustmentKey));
+    final adjustedImageAsync = ref.watch(adjustedImageByGenerationProvider((
+      groupId: groupId,
+      generationIndex: generationIndex,
+    )));
 
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Result image (50% width)
-        Expanded(
-          flex: 1,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: adjustedImageAsync.when(
-              data: (bytes) => bytes != null
-                  ? Image.memory(
-                      bytes,
-                      fit: BoxFit.contain,
-                      width: double.infinity,
-                    )
-                  : const SizedBox(),
-              loading: () => Container(
-                height: 200,
-                color: Colors.grey.shade200,
-                child: const Center(child: CircularProgressIndicator()),
-              ),
-              error: (e, _) => Container(
-                height: 200,
-                color: Colors.grey.shade200,
-                child: Center(child: Text('Error: $e')),
+        // Editable hex color for this generation
+        Row(
+          children: [
+            _EditableHexColor(
+              hexColor: colorizedImage.appliedHex,
+              groupId: groupId,
+              onColorChanged: (newHex) {
+                ref.read(processingControllerProvider).recolorizeGeneration(
+                  groupId,
+                  generationIndex,
+                  newHex,
+                );
+              },
+            ),
+            const Spacer(),
+            // Export button for this generation
+            ElevatedButton.icon(
+              onPressed: () async {
+                try {
+                  await ref.read(exportControllerProvider).exportSingleGeneration(
+                    groupId,
+                    generationIndex,
+                  );
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Exported generation ${generationIndex + 1} (${colorizedImage.appliedHex})'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Export failed: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              icon: const Icon(Icons.download, size: 18),
+              label: const Text('Export'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Colors.white,
               ),
             ),
-          ),
+          ],
         ),
-        const SizedBox(width: 24),
-        // Adjustment controls (50% width)
-        Expanded(
-          flex: 1,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _AdjustmentButtons(
-                label: 'Hue',
-                value: adjustments.hue,
-                min: -0.2,
-                max: 0.2,
-                step: 0.01,
-                onChanged: (v) => ref.read(imageAdjustmentsProvider.notifier).updateHue(groupId, v),
+        const SizedBox(height: 16),
+        // Main content row
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Result image (50% width)
+            Expanded(
+              flex: 1,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: adjustedImageAsync.when(
+                  data: (bytes) => bytes != null
+                      ? Image.memory(
+                          bytes,
+                          fit: BoxFit.contain,
+                          width: double.infinity,
+                        )
+                      : const SizedBox(),
+                  loading: () => Container(
+                    height: 200,
+                    color: Colors.grey.shade200,
+                    child: const Center(child: CircularProgressIndicator()),
+                  ),
+                  error: (e, _) => Container(
+                    height: 200,
+                    color: Colors.grey.shade200,
+                    child: Center(child: Text('Error: $e')),
+                  ),
+                ),
               ),
-              const SizedBox(height: 12),
-              _AdjustmentButtons(
-                label: 'Saturation',
-                value: adjustments.saturation,
-                min: -0.3,
-                max: 0.3,
-                step: 0.01,
-                onChanged: (v) => ref.read(imageAdjustmentsProvider.notifier).updateSaturation(groupId, v),
+            ),
+            const SizedBox(width: 24),
+            // Adjustment controls (50% width)
+            Expanded(
+              flex: 1,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _AdjustmentButtons(
+                    label: 'Hue',
+                    value: adjustments.hue,
+                    min: -0.2,
+                    max: 0.2,
+                    step: 0.01,
+                    onChanged: (v) => ref.read(imageAdjustmentsProvider.notifier).updateHue(adjustmentKey, v),
+                  ),
+                  const SizedBox(height: 12),
+                  _AdjustmentButtons(
+                    label: 'Saturation',
+                    value: adjustments.saturation,
+                    min: -0.3,
+                    max: 0.3,
+                    step: 0.01,
+                    onChanged: (v) => ref.read(imageAdjustmentsProvider.notifier).updateSaturation(adjustmentKey, v),
+                  ),
+                  const SizedBox(height: 12),
+                  _AdjustmentButtons(
+                    label: 'Brightness',
+                    value: adjustments.brightness,
+                    min: -0.3,
+                    max: 0.3,
+                    step: 0.01,
+                    onChanged: (v) => ref.read(imageAdjustmentsProvider.notifier).updateBrightness(adjustmentKey, v),
+                  ),
+                  const SizedBox(height: 12),
+                  _AdjustmentButtons(
+                    label: 'Contrast',
+                    value: adjustments.contrast,
+                    min: -0.3,
+                    max: 0.3,
+                    step: 0.01,
+                    onChanged: (v) => ref.read(imageAdjustmentsProvider.notifier).updateContrast(adjustmentKey, v),
+                  ),
+                  const SizedBox(height: 16),
+                  // Reset all button
+                  TextButton.icon(
+                    onPressed: () => ref.read(imageAdjustmentsProvider.notifier).reset(adjustmentKey),
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('Reset All'),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              _AdjustmentButtons(
-                label: 'Brightness',
-                value: adjustments.brightness,
-                min: -0.3,
-                max: 0.3,
-                step: 0.01,
-                onChanged: (v) => ref.read(imageAdjustmentsProvider.notifier).updateBrightness(groupId, v),
-              ),
-              const SizedBox(height: 12),
-              _AdjustmentButtons(
-                label: 'Contrast',
-                value: adjustments.contrast,
-                min: -0.3,
-                max: 0.3,
-                step: 0.01,
-                onChanged: (v) => ref.read(imageAdjustmentsProvider.notifier).updateContrast(groupId, v),
-              ),
-              const SizedBox(height: 16),
-              // Reset all button
-              TextButton.icon(
-                onPressed: () => ref.read(imageAdjustmentsProvider.notifier).reset(groupId),
-                icon: const Icon(Icons.refresh, size: 18),
-                label: const Text('Reset All'),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ],
     );
   }
-
 }
 
 /// Adjustment control with plus, minus, and reset buttons
