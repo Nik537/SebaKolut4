@@ -37,7 +37,6 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   bool _processingStarted = false;
-  bool _hideCompleteMessage = false;
 
   @override
   void initState() {
@@ -52,42 +51,74 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen>
     super.dispose();
   }
 
-  void _startHideCompleteTimer() {
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        setState(() => _hideCompleteMessage = true);
-      }
-    });
-  }
-
   void _startProcessing() {
     setState(() => _processingStarted = true);
     ref.read(processingControllerProvider).processAllGroups();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            ),
+            SizedBox(width: 12),
+            Text('Processing images...'),
+          ],
+        ),
+        duration: Duration(seconds: 60),
+        backgroundColor: Colors.blue,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final groups = ref.watch(groupsProvider);
-    final isProcessing = ref.watch(isProcessingProvider);
     final processingComplete = ref.watch(processingCompleteProvider);
 
-    // Start timer to hide complete message when processing completes
+    // Show snackbar when processing completes
     ref.listen<bool>(processingCompleteProvider, (previous, next) {
       if (next && !(previous ?? false)) {
-        _hideCompleteMessage = false;
-        _startHideCompleteTimer();
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 12),
+                Text('Processing complete!'),
+              ],
+            ),
+            duration: Duration(seconds: 3),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     });
-
-    // Determine if status bar should be visible
-    final showStatusBar = isProcessing || (processingComplete && !_hideCompleteMessage) || !_processingStarted;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Processing'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        actions: const [
-          LogViewerButton(),
+        actions: [
+          if (!_processingStarted)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ElevatedButton(
+                onPressed: _startProcessing,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Start Processing'),
+              ),
+            ),
+          const LogViewerButton(),
         ],
         bottom: groups.length > 1
             ? TabBar(
@@ -99,48 +130,6 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen>
       ),
       body: Column(
         children: [
-          // Status bar (hidden after 3 seconds when complete)
-          if (showStatusBar)
-            Container(
-              padding: const EdgeInsets.all(16),
-              color: _getStatusColor(isProcessing, processingComplete),
-              child: Row(
-                children: [
-                  if (isProcessing)
-                    const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  else if (processingComplete)
-                    const Icon(Icons.check_circle, color: Colors.white)
-                  else
-                    const Icon(Icons.pending, color: Colors.white),
-                  const SizedBox(width: 12),
-                  Text(
-                    _getStatusText(isProcessing, processingComplete, _processingStarted),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const Spacer(),
-                  if (!_processingStarted)
-                    ElevatedButton(
-                      onPressed: _startProcessing,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Theme.of(context).colorScheme.primary,
-                      ),
-                      child: const Text('Start Processing'),
-                    ),
-                ],
-              ),
-            ),
           // Tab content
           Expanded(
             child: groups.length > 1
@@ -190,19 +179,6 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen>
       ),
     );
   }
-
-  Color _getStatusColor(bool isProcessing, bool processingComplete) {
-    if (processingComplete) return Colors.green;
-    if (isProcessing) return Colors.blue;
-    return Colors.orange;
-  }
-
-  String _getStatusText(bool isProcessing, bool processingComplete, bool started) {
-    if (processingComplete) return 'Processing complete!';
-    if (isProcessing) return 'Processing images...';
-    if (!started) return 'Ready to process';
-    return 'Waiting...';
-  }
 }
 
 class _GroupProcessingView extends ConsumerStatefulWidget {
@@ -248,7 +224,6 @@ class _GroupProcessingViewState extends ConsumerState<_GroupProcessingView>
     final processingStates = ref.watch(imageProcessingStateProvider);
     final colorizedImages = ref.watch(colorizedImagesByGroupProvider(widget.group.id));
     final selectedGeneration = ref.watch(selectedGenerationProvider(widget.group.id));
-    final isProcessing = ref.watch(isProcessingProvider);
 
     final groupImages = allImages.where((img) => widget.group.imageIds.contains(img.id)).toList();
 
@@ -284,13 +259,13 @@ class _GroupProcessingViewState extends ConsumerState<_GroupProcessingView>
                       color: Colors.black87,
                     ),
                   ),
-                  if (hasGenerations && !isProcessing)
+                  if (hasGenerations || groupState?.hasError == true)
                     ElevatedButton.icon(
                       onPressed: () {
                         ref.read(processingControllerProvider).regenerateGroup(widget.group.id);
                       },
                       icon: const Icon(Icons.refresh, size: 18),
-                      label: const Text('Regenerate'),
+                      label: Text(groupState?.hasError == true && !hasGenerations ? 'Retry' : 'Regenerate'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.orange,
                         foregroundColor: Colors.white,
