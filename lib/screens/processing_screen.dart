@@ -37,6 +37,7 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   bool _processingStarted = false;
+  bool _hideCompleteMessage = false;
 
   @override
   void initState() {
@@ -51,6 +52,14 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen>
     super.dispose();
   }
 
+  void _startHideCompleteTimer() {
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() => _hideCompleteMessage = true);
+      }
+    });
+  }
+
   void _startProcessing() {
     setState(() => _processingStarted = true);
     ref.read(processingControllerProvider).processAllGroups();
@@ -61,6 +70,17 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen>
     final groups = ref.watch(groupsProvider);
     final isProcessing = ref.watch(isProcessingProvider);
     final processingComplete = ref.watch(processingCompleteProvider);
+
+    // Start timer to hide complete message when processing completes
+    ref.listen<bool>(processingCompleteProvider, (previous, next) {
+      if (next && !(previous ?? false)) {
+        _hideCompleteMessage = false;
+        _startHideCompleteTimer();
+      }
+    });
+
+    // Determine if status bar should be visible
+    final showStatusBar = isProcessing || (processingComplete && !_hideCompleteMessage) || !_processingStarted;
 
     return Scaffold(
       appBar: AppBar(
@@ -79,47 +99,48 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen>
       ),
       body: Column(
         children: [
-          // Status bar
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: _getStatusColor(isProcessing, processingComplete),
-            child: Row(
-              children: [
-                if (isProcessing)
-                  const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
+          // Status bar (hidden after 3 seconds when complete)
+          if (showStatusBar)
+            Container(
+              padding: const EdgeInsets.all(16),
+              color: _getStatusColor(isProcessing, processingComplete),
+              child: Row(
+                children: [
+                  if (isProcessing)
+                    const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  else if (processingComplete)
+                    const Icon(Icons.check_circle, color: Colors.white)
+                  else
+                    const Icon(Icons.pending, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Text(
+                    _getStatusText(isProcessing, processingComplete, _processingStarted),
+                    style: const TextStyle(
                       color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 16,
                     ),
-                  )
-                else if (processingComplete)
-                  const Icon(Icons.check_circle, color: Colors.white)
-                else
-                  const Icon(Icons.pending, color: Colors.white),
-                const SizedBox(width: 12),
-                Text(
-                  _getStatusText(isProcessing, processingComplete, _processingStarted),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w500,
-                    fontSize: 16,
                   ),
-                ),
-                const Spacer(),
-                if (!_processingStarted)
-                  ElevatedButton(
-                    onPressed: _startProcessing,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Theme.of(context).colorScheme.primary,
+                  const Spacer(),
+                  if (!_processingStarted)
+                    ElevatedButton(
+                      onPressed: _startProcessing,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Theme.of(context).colorScheme.primary,
+                      ),
+                      child: const Text('Start Processing'),
                     ),
-                    child: const Text('Start Processing'),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
           // Tab content
           Expanded(
             child: groups.length > 1
@@ -280,7 +301,7 @@ class _GroupProcessingViewState extends ConsumerState<_GroupProcessingView>
               ),
               const SizedBox(height: 8),
               SizedBox(
-                height: 120,
+                height: 240,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: groupImages.length,
@@ -294,9 +315,9 @@ class _GroupProcessingViewState extends ConsumerState<_GroupProcessingView>
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(8),
                           child: Image.memory(
-                            image.thumbnailBytes,
-                            width: 120,
-                            height: 120,
+                            image.bytes,
+                            width: 240,
+                            height: 240,
                             fit: BoxFit.cover,
                           ),
                         ),
