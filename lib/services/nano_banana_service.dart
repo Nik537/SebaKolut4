@@ -336,6 +336,11 @@ class NanoBananaService {
     // Boost factor to make colors more vibrant (especially for darker tints)
     final boostFactor = tintLuminance < 128 ? 1.3 : 1.1;
 
+    // Apply boost to the tint color itself to ensure continuity across the spectrum
+    final boostedR = (tintR * boostFactor).round().clamp(0, 255);
+    final boostedG = (tintG * boostFactor).round().clamp(0, 255);
+    final boostedB = (tintB * boostFactor).round().clamp(0, 255);
+
     for (int y = 0; y < result.height; y++) {
       for (int x = 0; x < result.width; x++) {
         final pixel = result.getPixel(x, y);
@@ -357,14 +362,14 @@ class NanoBananaService {
 
         if (luminance < 0.5) {
           // Darker areas: multiply blend
-          newR = ((2 * luminance * tintR) * boostFactor).round().clamp(0, 255);
-          newG = ((2 * luminance * tintG) * boostFactor).round().clamp(0, 255);
-          newB = ((2 * luminance * tintB) * boostFactor).round().clamp(0, 255);
+          newR = (2 * luminance * boostedR).round().clamp(0, 255);
+          newG = (2 * luminance * boostedG).round().clamp(0, 255);
+          newB = (2 * luminance * boostedB).round().clamp(0, 255);
         } else {
           // Lighter areas: screen blend (for highlights/sheen)
-          newR = (255 - (2 * (1 - luminance) * (255 - tintR))).round().clamp(0, 255);
-          newG = (255 - (2 * (1 - luminance) * (255 - tintG))).round().clamp(0, 255);
-          newB = (255 - (2 * (1 - luminance) * (255 - tintB))).round().clamp(0, 255);
+          newR = (255 - (2 * (1 - luminance) * (255 - boostedR))).round().clamp(0, 255);
+          newG = (255 - (2 * (1 - luminance) * (255 - boostedG))).round().clamp(0, 255);
+          newB = (255 - (2 * (1 - luminance) * (255 - boostedB))).round().clamp(0, 255);
         }
 
         // Preserve original alpha
