@@ -300,15 +300,67 @@ class _SelectableThumbnail extends ConsumerWidget {
   }
 }
 
-class _GroupCard extends StatelessWidget {
+class _GroupCard extends ConsumerStatefulWidget {
   final ImageGroup group;
   final List<ImportedImage> allImages;
 
   const _GroupCard({required this.group, required this.allImages});
 
   @override
+  ConsumerState<_GroupCard> createState() => _GroupCardState();
+}
+
+class _GroupCardState extends ConsumerState<_GroupCard> {
+  bool _isEditing = false;
+  late TextEditingController _textController;
+
+  @override
+  void initState() {
+    super.initState();
+    _textController = TextEditingController(text: widget.group.name);
+  }
+
+  @override
+  void didUpdateWidget(_GroupCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.group.name != widget.group.name && !_isEditing) {
+      _textController.text = widget.group.name;
+    }
+  }
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
+  }
+
+  void _startEditing() {
+    setState(() {
+      _isEditing = true;
+      _textController.text = widget.group.name;
+    });
+  }
+
+  void _cancelEditing() {
+    setState(() {
+      _isEditing = false;
+      _textController.text = widget.group.name;
+    });
+  }
+
+  void _saveEditing() {
+    final newName = _textController.text.trim();
+    if (newName.isNotEmpty && newName != widget.group.name) {
+      ref.read(groupsProvider.notifier).renameGroup(widget.group.id, newName);
+    }
+    setState(() {
+      _isEditing = false;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final groupImages = allImages.where((img) => group.imageIds.contains(img.id)).toList();
+    final groupImages = widget.allImages.where((img) => widget.group.imageIds.contains(img.id)).toList();
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -319,21 +371,71 @@ class _GroupCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Text(
-                  group.name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                if (_isEditing)
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _textController,
+                            autofocus: true,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                            decoration: const InputDecoration(
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                              border: OutlineInputBorder(),
+                            ),
+                            onSubmitted: (_) => _saveEditing(),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        IconButton(
+                          onPressed: _saveEditing,
+                          icon: const Icon(Icons.check, size: 20),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                          color: Colors.green,
+                        ),
+                        IconButton(
+                          onPressed: _cancelEditing,
+                          icon: const Icon(Icons.close, size: 20),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                          color: Colors.red,
+                        ),
+                      ],
+                    ),
+                  )
+                else ...[
+                  Expanded(
+                    child: Text(
+                      widget.group.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-                const Spacer(),
-                Text(
-                  '${group.imageIds.length} images',
-                  style: TextStyle(
+                  IconButton(
+                    onPressed: _startEditing,
+                    icon: const Icon(Icons.edit, size: 18),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                     color: Colors.grey.shade600,
-                    fontSize: 12,
+                    tooltip: 'Rename group',
                   ),
-                ),
+                  Text(
+                    '${widget.group.imageIds.length} images',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ],
             ),
             const SizedBox(height: 8),
