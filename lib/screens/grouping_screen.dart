@@ -311,51 +311,32 @@ class _GroupCard extends ConsumerStatefulWidget {
 }
 
 class _GroupCardState extends ConsumerState<_GroupCard> {
-  bool _isEditing = false;
-  late TextEditingController _textController;
+  late TextEditingController _nameController;
+  late TextEditingController _skuController;
 
   @override
   void initState() {
     super.initState();
-    _textController = TextEditingController(text: widget.group.name);
+    _nameController = TextEditingController(text: widget.group.name);
+    _skuController = TextEditingController(text: widget.group.sku);
   }
 
   @override
   void didUpdateWidget(_GroupCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.group.name != widget.group.name && !_isEditing) {
-      _textController.text = widget.group.name;
+    if (oldWidget.group.name != widget.group.name) {
+      _nameController.text = widget.group.name;
+    }
+    if (oldWidget.group.sku != widget.group.sku) {
+      _skuController.text = widget.group.sku;
     }
   }
 
   @override
   void dispose() {
-    _textController.dispose();
+    _nameController.dispose();
+    _skuController.dispose();
     super.dispose();
-  }
-
-  void _startEditing() {
-    setState(() {
-      _isEditing = true;
-      _textController.text = widget.group.name;
-    });
-  }
-
-  void _cancelEditing() {
-    setState(() {
-      _isEditing = false;
-      _textController.text = widget.group.name;
-    });
-  }
-
-  void _saveEditing() {
-    final newName = _textController.text.trim();
-    if (newName.isNotEmpty && newName != widget.group.name) {
-      ref.read(groupsProvider.notifier).renameGroup(widget.group.id, newName);
-    }
-    setState(() {
-      _isEditing = false;
-    });
   }
 
   @override
@@ -369,74 +350,57 @@ class _GroupCardState extends ConsumerState<_GroupCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Group name input field
             Row(
               children: [
-                if (_isEditing)
-                  Expanded(
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _textController,
-                            autofocus: true,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                            decoration: const InputDecoration(
-                              isDense: true,
-                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                              border: OutlineInputBorder(),
-                            ),
-                            onSubmitted: (_) => _saveEditing(),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        IconButton(
-                          onPressed: _saveEditing,
-                          icon: const Icon(Icons.check, size: 20),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                          color: Colors.green,
-                        ),
-                        IconButton(
-                          onPressed: _cancelEditing,
-                          icon: const Icon(Icons.close, size: 20),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                          color: Colors.red,
-                        ),
-                      ],
+                Expanded(
+                  child: TextField(
+                    controller: _nameController,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
                     ),
-                  )
-                else ...[
-                  Expanded(
-                    child: Text(
-                      widget.group.name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                      overflow: TextOverflow.ellipsis,
+                    decoration: InputDecoration(
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      border: const OutlineInputBorder(),
+                      hintText: 'Ime (npr. Refill PLA Silk Lila)',
+                      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                      labelText: 'Ime',
+                      labelStyle: const TextStyle(fontSize: 12),
                     ),
+                    onChanged: (value) {
+                      ref.read(groupsProvider.notifier).renameGroup(widget.group.id, value);
+                    },
                   ),
-                  IconButton(
-                    onPressed: _startEditing,
-                    icon: const Icon(Icons.edit, size: 18),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${widget.group.imageIds.length} img',
+                  style: TextStyle(
                     color: Colors.grey.shade600,
-                    tooltip: 'Rename group',
+                    fontSize: 12,
                   ),
-                  Text(
-                    '${widget.group.imageIds.length} images',
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
+                ),
               ],
+            ),
+            const SizedBox(height: 8),
+            // SKU input field
+            TextField(
+              controller: _skuController,
+              style: const TextStyle(fontSize: 13),
+              decoration: InputDecoration(
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                border: const OutlineInputBorder(),
+                hintText: 'SKU (npr. FLR171-4005)',
+                hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                labelText: 'SKU',
+                labelStyle: const TextStyle(fontSize: 12),
+              ),
+              onChanged: (value) {
+                ref.read(groupsProvider.notifier).updateSku(widget.group.id, value);
+              },
             ),
             const SizedBox(height: 8),
             // Mini thumbnails preview

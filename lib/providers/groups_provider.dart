@@ -19,11 +19,11 @@ class GroupsNotifier extends StateNotifier<List<ImageGroup>> {
     if (selectedImages.isEmpty) return;
 
     final imageIds = selectedImages.map((img) => img.id).toList();
-    final groupNumber = state.length + 1;
 
     final group = ImageGroup(
       id: _uuid.v4(),
-      name: 'Group $groupNumber',
+      name: 'test',
+      sku: 'test123',
       imageIds: imageIds,
       createdAt: DateTime.now(),
     );
@@ -42,6 +42,15 @@ class GroupsNotifier extends StateNotifier<List<ImageGroup>> {
     state = state.map((g) {
       if (g.id == groupId) {
         return g.copyWith(name: newName);
+      }
+      return g;
+    }).toList();
+  }
+
+  void updateSku(String groupId, String sku) {
+    state = state.map((g) {
+      if (g.id == groupId) {
+        return g.copyWith(sku: sku);
       }
       return g;
     }).toList();

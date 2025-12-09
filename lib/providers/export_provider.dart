@@ -70,7 +70,8 @@ class ExportController {
       );
 
       exportData.add(ExportImageData(
-        hexColor: image.appliedHex,
+        groupName: group.name,
+        sku: group.sku,
         whiteBytes: whiteBytes,
         transparentBytes: transparentBytes,
         zoomBytes: zoomBytes,
@@ -88,6 +89,10 @@ class ExportController {
     if (colorizedImage == null) {
       throw Exception('No colorized image found for group $groupId, generation $generationIndex');
     }
+
+    // Get group info for name and SKU
+    final groups = _ref.read(groupsProvider);
+    final group = groups.firstWhere((g) => g.id == groupId);
 
     final exportService = _ref.read(exportServiceProvider);
     final nanoBananaService = _ref.read(nanoBananaServiceProvider);
@@ -129,7 +134,8 @@ class ExportController {
     );
 
     final exportData = ExportImageData(
-      hexColor: colorizedImage.appliedHex,
+      groupName: group.name,
+      sku: group.sku,
       whiteBytes: whiteBytes,
       transparentBytes: transparentBytes,
       zoomBytes: zoomBytes,
@@ -141,13 +147,15 @@ class ExportController {
 
 /// Data class for exporting images with all background versions
 class ExportImageData {
-  final String hexColor;
+  final String groupName;
+  final String sku;
   final Uint8List whiteBytes;
   final Uint8List transparentBytes;
   final Uint8List zoomBytes;
 
   ExportImageData({
-    required this.hexColor,
+    required this.groupName,
+    required this.sku,
     required this.whiteBytes,
     required this.transparentBytes,
     required this.zoomBytes,

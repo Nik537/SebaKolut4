@@ -48,15 +48,16 @@ class ExportService {
   }
 
   /// Export images with white, transparent, and zoom background versions
-  /// File naming: [hex]_white.webp, [hex]_transparent.webp, and [hex]_zoom.webp
+  /// File naming: 3d-filament-{GroupName}-azurefilm.webp, etc.
+  /// Folder structure: {GroupName} {SKU}/
   /// WebP format with lossy (white/zoom) and lossless (transparent) compression
   Future<void> exportDualBackground({
     required List<ExportImageData> images,
   }) async {
     if (kIsWeb) {
-      // Web: Download each file individually
+      // Web: Download each file individually (no folder structure)
       for (final imageData in images) {
-        final hex = imageData.hexColor.replaceAll('#', '');
+        final baseName = imageData.groupName.replaceAll(' ', '-');
 
         // Export white background version (lossy WebP)
         final whiteConverted = await _prepareForExport(
@@ -64,7 +65,7 @@ class ExportService {
           preserveTransparency: false,
         );
         await FileSaver.instance.saveFile(
-          name: '${hex}_white.webp',
+          name: '3d-filament-$baseName-azurefilm.webp',
           bytes: whiteConverted,
           ext: 'webp',
           mimeType: MimeType.other,
@@ -76,7 +77,7 @@ class ExportService {
           preserveTransparency: true,
         );
         await FileSaver.instance.saveFile(
-          name: '${hex}_transparent.webp',
+          name: '3d-filament-$baseName-alpha-azurefilm.webp',
           bytes: transparentConverted,
           ext: 'webp',
           mimeType: MimeType.other,
@@ -88,28 +89,34 @@ class ExportService {
           preserveTransparency: false,
         );
         await FileSaver.instance.saveFile(
-          name: '${hex}_zoom.webp',
+          name: '3d-filament-$baseName-zoom-azurefilm.webp',
           bytes: zoomConverted,
           ext: 'webp',
           mimeType: MimeType.other,
         );
       }
     } else {
-      // Desktop/Mobile: Select directory then save all
+      // Desktop/Mobile: Select directory then save all in folders
       final directory = await FilePicker.platform.getDirectoryPath(
         dialogTitle: 'Select Export Directory',
       );
 
       if (directory != null) {
         for (final imageData in images) {
-          final hex = imageData.hexColor.replaceAll('#', '');
+          // Create folder: "{GroupName} {SKU}"
+          final folderName = '${imageData.groupName} ${imageData.sku}'.trim();
+          final folderPath = '$directory/$folderName';
+          await Directory(folderPath).create(recursive: true);
+
+          // Generate base filename: replace spaces with "-"
+          final baseName = imageData.groupName.replaceAll(' ', '-');
 
           // Export white background version (lossy WebP)
           final whiteConverted = await _prepareForExport(
             imageData.whiteBytes,
             preserveTransparency: false,
           );
-          final whiteFile = File('$directory/${hex}_white.webp');
+          final whiteFile = File('$folderPath/3d-filament-$baseName-azurefilm.webp');
           await whiteFile.writeAsBytes(whiteConverted);
 
           // Export transparent background version (lossless WebP with alpha)
@@ -117,7 +124,7 @@ class ExportService {
             imageData.transparentBytes,
             preserveTransparency: true,
           );
-          final transparentFile = File('$directory/${hex}_transparent.webp');
+          final transparentFile = File('$folderPath/3d-filament-$baseName-alpha-azurefilm.webp');
           await transparentFile.writeAsBytes(transparentConverted);
 
           // Export zoom version (lossy WebP)
@@ -125,7 +132,7 @@ class ExportService {
             imageData.zoomBytes,
             preserveTransparency: false,
           );
-          final zoomFile = File('$directory/${hex}_zoom.webp');
+          final zoomFile = File('$folderPath/3d-filament-$baseName-zoom-azurefilm.webp');
           await zoomFile.writeAsBytes(zoomConverted);
         }
       }
