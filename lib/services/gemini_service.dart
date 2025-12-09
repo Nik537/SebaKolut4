@@ -37,13 +37,29 @@ class GeminiService {
       DataPart('image/jpeg', imageBytes),
     ]);
 
-    final response = await _model.generateContent([prompt]);
-    final hexColor = _parseHexFromResponse(response.text);
+    const maxAttempts = 3;
+    Exception? lastError;
 
-    return ColorExtractionResult(
-      hexColor: hexColor,
-      rawResponse: response.text,
-    );
+    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        final response = await _model.generateContent([prompt]);
+        final hexColor = _parseHexFromResponse(response.text);
+
+        return ColorExtractionResult(
+          hexColor: hexColor,
+          rawResponse: response.text,
+        );
+      } catch (e) {
+        lastError = e is Exception ? e : Exception(e.toString());
+        if (attempt < maxAttempts) {
+          // Wait before retrying (1 second delay)
+          await Future.delayed(const Duration(seconds: 1));
+        }
+      }
+    }
+
+    throw ColorExtractionException(
+        'Failed after $maxAttempts attempts: ${lastError.toString()}');
   }
 
   /// Analyze multiple images of the same filament spool (different angles/lighting)
@@ -81,8 +97,25 @@ class GeminiService {
     }
 
     final prompt = Content.multi(parts);
-    final response = await _model.generateContent([prompt]);
-    return _parseHexFromResponse(response.text);
+
+    const maxAttempts = 3;
+    Exception? lastError;
+
+    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        final response = await _model.generateContent([prompt]);
+        return _parseHexFromResponse(response.text);
+      } catch (e) {
+        lastError = e is Exception ? e : Exception(e.toString());
+        if (attempt < maxAttempts) {
+          // Wait before retrying (1 second delay)
+          await Future.delayed(const Duration(seconds: 1));
+        }
+      }
+    }
+
+    throw ColorExtractionException(
+        'Failed after $maxAttempts attempts: ${lastError.toString()}');
   }
 
   String _parseHexFromResponse(String? text) {

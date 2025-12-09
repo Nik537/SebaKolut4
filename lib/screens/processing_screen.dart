@@ -1,30 +1,13 @@
-import 'dart:ui' as ui;
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:open_file/open_file.dart';
+import 'package:path_provider/path_provider.dart';
 import '../providers/providers.dart';
 import '../models/models.dart';
 import '../widgets/log_viewer.dart';
 import 'export_screen.dart';
-
-/// Data class for tracking open image popup windows
-class _ImagePopupData {
-  final String id;
-  final Uint8List imageBytes;
-  final String imageName;
-  Offset position;
-  final int imageWidth;
-  final int imageHeight;
-
-  _ImagePopupData({
-    required this.id,
-    required this.imageBytes,
-    required this.imageName,
-    required this.position,
-    required this.imageWidth,
-    required this.imageHeight,
-  });
-}
 
 class ProcessingScreen extends ConsumerStatefulWidget {
   const ProcessingScreen({super.key});
@@ -192,8 +175,6 @@ class _GroupProcessingView extends ConsumerStatefulWidget {
 
 class _GroupProcessingViewState extends ConsumerState<_GroupProcessingView>
     with SingleTickerProviderStateMixin {
-  final List<_ImagePopupData> _openPopups = [];
-  int _popupIdCounter = 0;
   late TabController _generationTabController;
 
   @override
@@ -284,7 +265,7 @@ class _GroupProcessingViewState extends ConsumerState<_GroupProcessingView>
                   itemBuilder: (context, index) {
                     final image = groupImages[index];
                     return GestureDetector(
-                      onTap: () => _openImagePopup(image.bytes, image.filename),
+                      onTap: () => _openImageInSystemViewer(image.bytes, image.filename),
                       child: MouseRegion(
                         cursor: SystemMouseCursors.click,
                         child: ClipRRect(
@@ -362,14 +343,6 @@ class _GroupProcessingViewState extends ConsumerState<_GroupProcessingView>
             ],
           ),
         ),
-        // Popup windows
-        ..._openPopups.map((popup) => _DraggableImagePopup(
-          key: ValueKey(popup.id),
-          popup: popup,
-          onClose: () => _closePopup(popup.id),
-          onDragUpdate: (delta) => _updatePopupPosition(popup.id, delta),
-          onBringToFront: () => _bringToFront(popup.id),
-        )),
       ],
     );
   }
@@ -410,58 +383,26 @@ class _GroupProcessingViewState extends ConsumerState<_GroupProcessingView>
     );
   }
 
-  Future<void> _openImagePopup(Uint8List imageBytes, String imageName) async {
-    // Decode image to get dimensions
-    final codec = await ui.instantiateImageCodec(imageBytes);
-    final frame = await codec.getNextFrame();
-    final imageWidth = frame.image.width;
-    final imageHeight = frame.image.height;
-    frame.image.dispose();
-    codec.dispose();
+  Future<void> _openImageInSystemViewer(Uint8List imageBytes, String imageName) async {
+    try {
+      // Get the temporary directory
+      final tempDir = await getTemporaryDirectory();
+      final tempFile = File('${tempDir.path}/$imageName');
 
-    // Check if widget is still mounted after async operation
-    if (!mounted) return;
+      // Write image bytes to the temp file
+      await tempFile.writeAsBytes(imageBytes);
 
-    // Calculate initial position (with offset for multiple windows)
-    final offsetMultiplier = _openPopups.length % 5;
-    final initialPosition = Offset(
-      100 + (offsetMultiplier * 30),
-      100 + (offsetMultiplier * 30),
-    );
-
-    setState(() {
-      _openPopups.add(_ImagePopupData(
-        id: '${widget.group.id}_${_popupIdCounter++}',
-        imageBytes: imageBytes,
-        imageName: imageName,
-        position: initialPosition,
-        imageWidth: imageWidth,
-        imageHeight: imageHeight,
-      ));
-    });
-  }
-
-  void _closePopup(String popupId) {
-    setState(() {
-      _openPopups.removeWhere((p) => p.id == popupId);
-    });
-  }
-
-  void _updatePopupPosition(String popupId, Offset delta) {
-    setState(() {
-      final popup = _openPopups.firstWhere((p) => p.id == popupId);
-      popup.position += delta;
-    });
-  }
-
-  void _bringToFront(String popupId) {
-    setState(() {
-      final index = _openPopups.indexWhere((p) => p.id == popupId);
-      if (index != -1 && index != _openPopups.length - 1) {
-        final popup = _openPopups.removeAt(index);
-        _openPopups.add(popup);
-      }
-    });
+      // Open the file with the system's default application
+      await OpenFile.open(tempFile.path);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to open image: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Widget _buildStatusSection(BuildContext context, ImageProcessingState? state, int imageCount) {
@@ -607,126 +548,6 @@ class _GroupProcessingViewState extends ConsumerState<_GroupProcessingView>
   Color _hexToColor(String hex) {
     final hexCode = hex.replaceAll('#', '');
     return Color(int.parse('FF$hexCode', radix: 16));
-  }
-}
-
-/// Draggable image popup window
-class _DraggableImagePopup extends StatelessWidget {
-  final _ImagePopupData popup;
-  final VoidCallback onClose;
-  final ValueChanged<Offset> onDragUpdate;
-  final VoidCallback onBringToFront;
-
-  const _DraggableImagePopup({
-    super.key,
-    required this.popup,
-    required this.onClose,
-    required this.onDragUpdate,
-    required this.onBringToFront,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size;
-    const headerHeight = 40.0;
-    const maxWidthFactor = 0.8;
-    const maxHeightFactor = 0.8;
-
-    // Calculate popup size based on image dimensions
-    final maxWidth = screenSize.width * maxWidthFactor;
-    final maxHeight = screenSize.height * maxHeightFactor - headerHeight;
-
-    double popupWidth;
-    double popupHeight;
-
-    if (popup.imageWidth <= maxWidth && popup.imageHeight <= maxHeight) {
-      // Image fits within max constraints
-      popupWidth = popup.imageWidth.toDouble();
-      popupHeight = popup.imageHeight.toDouble();
-    } else {
-      // Scale to fit
-      final widthRatio = maxWidth / popup.imageWidth;
-      final heightRatio = maxHeight / popup.imageHeight;
-      final scale = widthRatio < heightRatio ? widthRatio : heightRatio;
-      popupWidth = popup.imageWidth * scale;
-      popupHeight = popup.imageHeight * scale;
-    }
-
-    return Positioned(
-      left: popup.position.dx,
-      top: popup.position.dy,
-      child: GestureDetector(
-        onTap: onBringToFront,
-        child: Material(
-          elevation: 8,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            width: popupWidth,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Draggable header
-                GestureDetector(
-                  onPanUpdate: (details) => onDragUpdate(details.delta),
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.move,
-                    child: Container(
-                      height: headerHeight,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              popup.imageName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.close),
-                            onPressed: onClose,
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                            iconSize: 18,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                // Image
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
-                  child: SizedBox(
-                    width: popupWidth,
-                    height: popupHeight,
-                    child: InteractiveViewer(
-                      minScale: 0.5,
-                      maxScale: 4.0,
-                      child: Image.memory(
-                        popup.imageBytes,
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 
