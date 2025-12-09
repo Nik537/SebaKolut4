@@ -8,6 +8,8 @@ class NanoBananaService {
   bool _isInitialized = false;
   final _uuid = const Uuid();
   Uint8List? _cartonImageBytes;
+  Uint8List? _zoomedSilkTemplateBytes;
+  Uint8List? _zoomedCartonImageBytes;
 
   Future<void> initialize() async {
     if (_isInitialized) return;
@@ -15,6 +17,14 @@ class NanoBananaService {
     // Load the carton overlay image
     final byteData = await rootBundle.load('assets/images/Carton.png');
     _cartonImageBytes = byteData.buffer.asUint8List();
+
+    // Load zoomed SILK template
+    final zoomedSilkData = await rootBundle.load('assets/images/Zoomed SILK Template.png');
+    _zoomedSilkTemplateBytes = zoomedSilkData.buffer.asUint8List();
+
+    // Load zoomed carton overlay
+    final zoomedCartonData = await rootBundle.load('assets/images/Zoomed Karton.png');
+    _zoomedCartonImageBytes = zoomedCartonData.buffer.asUint8List();
 
     _isInitialized = true;
   }
@@ -117,6 +127,126 @@ class NanoBananaService {
     // Always encode as PNG for quality preservation
     // WebP conversion is handled by export_service
     return Uint8List.fromList(img.encodePng(finalImage));
+  }
+
+  /// Generate a zoomed image for export.
+  /// Uses Zoomed SILK Template + Zoomed Karton with white background.
+  Future<Uint8List> generateZoomImage({
+    required String hexColor,
+    required double hue,
+    required double saturation,
+    required double brightness,
+    required double contrast,
+    required double sharpness,
+  }) async {
+    if (!_isInitialized) {
+      await initialize();
+    }
+
+    if (_zoomedSilkTemplateBytes == null || _zoomedCartonImageBytes == null) {
+      throw ColorizationException('Zoomed templates not loaded');
+    }
+
+    // Parse hex color
+    final color = _parseHexColor(hexColor);
+
+    // Decode the zoomed SILK template
+    final zoomedTemplate = img.decodeImage(_zoomedSilkTemplateBytes!);
+    if (zoomedTemplate == null) {
+      throw ColorizationException('Failed to decode zoomed SILK template');
+    }
+
+    // Apply colorization to the zoomed template
+    var colorizedZoomed = _applyColorTint(zoomedTemplate, color);
+
+    // Apply adjustments (same as regular images)
+    if (hue != 0) {
+      colorizedZoomed = _adjustHue(colorizedZoomed, hue);
+    }
+    if (saturation != 0) {
+      colorizedZoomed = _adjustSaturation(colorizedZoomed, saturation);
+    }
+    if (brightness != 0) {
+      colorizedZoomed = _adjustBrightness(colorizedZoomed, brightness);
+    }
+    if (contrast != 0) {
+      colorizedZoomed = _adjustContrast(colorizedZoomed, contrast);
+    }
+    if (sharpness > 0) {
+      colorizedZoomed = _adjustSharpness(colorizedZoomed, sharpness);
+    }
+
+    // Composite 3 layers with zoomed carton
+    final finalImage = _composite3LayersWithZoomedCarton(colorizedZoomed);
+
+    return Uint8List.fromList(img.encodePng(finalImage));
+  }
+
+  /// Composite 3 layers using zoomed carton: white background + colorized template + zoomed carton
+  img.Image _composite3LayersWithZoomedCarton(img.Image colorizedTemplate) {
+    final width = colorizedTemplate.width;
+    final height = colorizedTemplate.height;
+
+    // Layer 1: Create white background
+    final result = img.Image(width: width, height: height);
+    result.clear(img.ColorRgba8(255, 255, 255, 255));
+
+    // Layer 2: Composite colorized template on top of background (alpha blend)
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        final templatePixel = colorizedTemplate.getPixel(x, y);
+        final templateAlpha = templatePixel.a.toInt();
+
+        if (templateAlpha > 0) {
+          final basePixel = result.getPixel(x, y);
+          final alpha = templateAlpha / 255.0;
+          final invAlpha = 1.0 - alpha;
+
+          final newR = (templatePixel.r.toInt() * alpha + basePixel.r.toInt() * invAlpha).round().clamp(0, 255);
+          final newG = (templatePixel.g.toInt() * alpha + basePixel.g.toInt() * invAlpha).round().clamp(0, 255);
+          final newB = (templatePixel.b.toInt() * alpha + basePixel.b.toInt() * invAlpha).round().clamp(0, 255);
+
+          result.setPixel(x, y, img.ColorRgba8(newR, newG, newB, 255));
+        }
+      }
+    }
+
+    // Layer 3: Composite zoomed carton on top
+    if (_zoomedCartonImageBytes != null) {
+      final cartonImage = img.decodeImage(_zoomedCartonImageBytes!);
+      if (cartonImage != null) {
+        img.Image carton = cartonImage;
+        if (carton.width != width || carton.height != height) {
+          carton = img.copyResize(
+            carton,
+            width: width,
+            height: height,
+            interpolation: img.Interpolation.cubic,
+          );
+        }
+
+        for (int y = 0; y < height; y++) {
+          for (int x = 0; x < width; x++) {
+            final cartonPixel = carton.getPixel(x, y);
+            final cartonAlpha = cartonPixel.a.toInt();
+
+            if (cartonAlpha > 0) {
+              final basePixel = result.getPixel(x, y);
+              final alpha = cartonAlpha / 255.0;
+              final invAlpha = 1.0 - alpha;
+
+              final newR = (cartonPixel.r.toInt() * alpha + basePixel.r.toInt() * invAlpha).round().clamp(0, 255);
+              final newG = (cartonPixel.g.toInt() * alpha + basePixel.g.toInt() * invAlpha).round().clamp(0, 255);
+              final newB = (cartonPixel.b.toInt() * alpha + basePixel.b.toInt() * invAlpha).round().clamp(0, 255);
+
+              result.setPixel(x, y, img.ColorRgba8(newR, newG, newB, 255));
+            }
+          }
+        }
+      }
+    }
+
+    return result;
   }
 
   img.Image _adjustHue(img.Image source, double hueShift) {

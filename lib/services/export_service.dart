@@ -47,9 +47,9 @@ class ExportService {
     return webpBytes;
   }
 
-  /// Export images with both white and transparent background versions
-  /// File naming: [hex]_white.webp and [hex]_transparent.webp
-  /// WebP format with lossy (white) and lossless (transparent) compression
+  /// Export images with white, transparent, and zoom background versions
+  /// File naming: [hex]_white.webp, [hex]_transparent.webp, and [hex]_zoom.webp
+  /// WebP format with lossy (white/zoom) and lossless (transparent) compression
   Future<void> exportDualBackground({
     required List<ExportImageData> images,
   }) async {
@@ -81,6 +81,18 @@ class ExportService {
           ext: 'webp',
           mimeType: MimeType.other,
         );
+
+        // Export zoom version (lossy WebP)
+        final zoomConverted = await _prepareForExport(
+          imageData.zoomBytes,
+          preserveTransparency: false,
+        );
+        await FileSaver.instance.saveFile(
+          name: '${hex}_zoom.webp',
+          bytes: zoomConverted,
+          ext: 'webp',
+          mimeType: MimeType.other,
+        );
       }
     } else {
       // Desktop/Mobile: Select directory then save all
@@ -107,6 +119,14 @@ class ExportService {
           );
           final transparentFile = File('$directory/${hex}_transparent.webp');
           await transparentFile.writeAsBytes(transparentConverted);
+
+          // Export zoom version (lossy WebP)
+          final zoomConverted = await _prepareForExport(
+            imageData.zoomBytes,
+            preserveTransparency: false,
+          );
+          final zoomFile = File('$directory/${hex}_zoom.webp');
+          await zoomFile.writeAsBytes(zoomConverted);
         }
       }
     }

@@ -59,10 +59,21 @@ class ExportController {
         useWhiteBackground: false,
       );
 
+      // Generate zoom version (using zoomed SILK template + zoomed carton)
+      final zoomBytes = await nanoBananaService.generateZoomImage(
+        hexColor: image.appliedHex,
+        hue: adjustments.hue,
+        saturation: adjustments.saturation,
+        brightness: adjustments.brightness,
+        contrast: adjustments.contrast,
+        sharpness: adjustments.sharpness,
+      );
+
       exportData.add(ExportImageData(
         hexColor: image.appliedHex,
         whiteBytes: whiteBytes,
         transparentBytes: transparentBytes,
+        zoomBytes: zoomBytes,
       ));
     }
 
@@ -107,25 +118,38 @@ class ExportController {
       useWhiteBackground: false,
     );
 
+    // Generate zoom version (using zoomed SILK template + zoomed carton)
+    final zoomBytes = await nanoBananaService.generateZoomImage(
+      hexColor: colorizedImage.appliedHex,
+      hue: adjustments.hue,
+      saturation: adjustments.saturation,
+      brightness: adjustments.brightness,
+      contrast: adjustments.contrast,
+      sharpness: adjustments.sharpness,
+    );
+
     final exportData = ExportImageData(
       hexColor: colorizedImage.appliedHex,
       whiteBytes: whiteBytes,
       transparentBytes: transparentBytes,
+      zoomBytes: zoomBytes,
     );
 
     await exportService.exportDualBackground(images: [exportData]);
   }
 }
 
-/// Data class for exporting images with both background versions
+/// Data class for exporting images with all background versions
 class ExportImageData {
   final String hexColor;
   final Uint8List whiteBytes;
   final Uint8List transparentBytes;
+  final Uint8List zoomBytes;
 
   ExportImageData({
     required this.hexColor,
     required this.whiteBytes,
     required this.transparentBytes,
+    required this.zoomBytes,
   });
 }
