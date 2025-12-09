@@ -22,8 +22,7 @@ class GroupsNotifier extends StateNotifier<List<ImageGroup>> {
 
     final group = ImageGroup(
       id: _uuid.v4(),
-      name: 'test',
-      sku: 'test123',
+      name: '',
       imageIds: imageIds,
       createdAt: DateTime.now(),
     );

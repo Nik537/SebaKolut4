@@ -324,10 +324,12 @@ class _GroupCardState extends ConsumerState<_GroupCard> {
   @override
   void didUpdateWidget(_GroupCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.group.name != widget.group.name) {
+    if (oldWidget.group.name != widget.group.name &&
+        _nameController.text != widget.group.name) {
       _nameController.text = widget.group.name;
     }
-    if (oldWidget.group.sku != widget.group.sku) {
+    if (oldWidget.group.sku != widget.group.sku &&
+        _skuController.text != widget.group.sku) {
       _skuController.text = widget.group.sku;
     }
   }
