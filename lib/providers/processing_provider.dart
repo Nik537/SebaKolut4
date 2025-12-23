@@ -325,14 +325,15 @@ class ProcessingController {
   /// Extract 3 unique hex colors using Gemini AI
   Future<List<String>> _extractMultipleUniqueColors(
     GeminiService geminiService,
-    List<Uint8List> imageBytes,
-  ) async {
+    List<Uint8List> imageBytes, {
+    String? promptHint,
+  }) async {
     final colors = <String>{};
     int attempts = 0;
     const maxAttempts = 10;
 
     while (colors.length < 3 && attempts < maxAttempts) {
-      final hex = await geminiService.extractColorFromMultipleImages(imageBytes);
+      final hex = await geminiService.extractColorFromMultipleImages(imageBytes, promptHint: promptHint);
       colors.add(hex.toUpperCase());
       attempts++;
 
@@ -494,7 +495,8 @@ class ProcessingController {
   }
 
   /// Regenerate all 3 generations for a group by calling Gemini AI 3 times
-  Future<void> regenerateGroup(String groupId) async {
+  /// Optionally accepts a [promptHint] to provide additional context to the AI.
+  Future<void> regenerateGroup(String groupId, {String? promptHint}) async {
     final groups = _ref.read(groupsProvider);
     final group = groups.firstWhere((g) => g.id == groupId);
     final images = _ref.read(importedImagesProvider);
@@ -507,7 +509,7 @@ class ProcessingController {
         .map((id) => images.firstWhere((img) => img.id == id))
         .toList();
 
-    _log.info('Regenerating ${group.name} with 3 new AI extractions...');
+    _log.info('Regenerating ${group.name} with 3 new AI extractions...${promptHint != null ? ' (hint: $promptHint)' : ''}');
 
     // Mark all images as extracting color
     for (final image in groupImages) {
@@ -541,7 +543,7 @@ class ProcessingController {
         }
       }
 
-      final uniqueColors = await _extractMultipleUniqueColors(geminiService, imageBytes);
+      final uniqueColors = await _extractMultipleUniqueColors(geminiService, imageBytes, promptHint: promptHint);
 
       _log.success('3 unique colors determined: ${uniqueColors.join(', ')}');
 

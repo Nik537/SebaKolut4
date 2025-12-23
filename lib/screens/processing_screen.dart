@@ -343,8 +343,23 @@ class _GroupProcessingViewState extends ConsumerState<_GroupProcessingView>
                   ),
                   if (hasGenerations || groupState?.hasError == true)
                     ElevatedButton.icon(
-                      onPressed: () {
-                        ref.read(processingControllerProvider).regenerateGroup(widget.group.id);
+                      onPressed: () async {
+                        final isRetry = groupState?.hasError == true && !hasGenerations;
+                        final result = await showDialog<String?>(
+                          context: context,
+                          builder: (context) => _RegenerateDialog(
+                            groupName: widget.group.name,
+                            isRetry: isRetry,
+                          ),
+                        );
+                        // null = cancelled, empty string or non-empty = proceed
+                        if (result != null) {
+                          final hint = result.isEmpty ? null : result;
+                          ref.read(processingControllerProvider).regenerateGroup(
+                            widget.group.id,
+                            promptHint: hint,
+                          );
+                        }
                       },
                       icon: const Icon(Icons.refresh, size: 18),
                       label: Text(groupState?.hasError == true && !hasGenerations ? 'Retry' : 'Regenerate'),
@@ -1228,6 +1243,83 @@ class _EditableHexColorState extends State<_EditableHexColor> {
             onChanged: _onTextChanged,
             onSubmitted: (_) => _submitValue(),
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Dialog for regenerating colors with an optional hint
+class _RegenerateDialog extends StatefulWidget {
+  final String groupName;
+  final bool isRetry;
+
+  const _RegenerateDialog({
+    required this.groupName,
+    required this.isRetry,
+  });
+
+  @override
+  State<_RegenerateDialog> createState() => _RegenerateDialogState();
+}
+
+class _RegenerateDialogState extends State<_RegenerateDialog> {
+  final TextEditingController _hintController = TextEditingController();
+
+  @override
+  void dispose() {
+    _hintController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.isRetry ? 'Retry Processing' : 'Regenerate Colors'),
+      content: SizedBox(
+        width: 400,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Group: ${widget.groupName}',
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _hintController,
+              decoration: const InputDecoration(
+                labelText: 'Color hint (optional)',
+                hintText: 'e.g., "matte finish", "more blue in real life"',
+                helperText: 'Provide additional context to help the AI identify the correct color',
+                helperMaxLines: 2,
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+              textCapitalization: TextCapitalization.sentences,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            final hint = _hintController.text.trim();
+            // Return empty string to indicate "regenerate without hint"
+            // Return non-empty string to indicate "regenerate with hint"
+            // Null means cancelled (handled by pop() without argument)
+            Navigator.of(context).pop(hint.isEmpty ? '' : hint);
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.orange,
+            foregroundColor: Colors.white,
+          ),
+          child: Text(widget.isRetry ? 'Retry' : 'Regenerate'),
         ),
       ],
     );

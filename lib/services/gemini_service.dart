@@ -64,7 +64,11 @@ class GeminiService {
 
   /// Analyze multiple images of the same filament spool (different angles/lighting)
   /// and determine the single best hex color that represents the filament.
-  Future<String> extractColorFromMultipleImages(List<Uint8List> imageBytesList) async {
+  /// Optionally accepts a [promptHint] to provide additional context to the AI.
+  Future<String> extractColorFromMultipleImages(
+    List<Uint8List> imageBytesList, {
+    String? promptHint,
+  }) async {
     if (!_isInitialized) {
       initialize();
     }
@@ -80,15 +84,20 @@ class GeminiService {
     }
 
     // Build prompt with all images
-    final parts = <Part>[
-      TextPart(
+    final basePrompt =
         'These are ${imageBytesList.length} photos of the SAME 3D printing filament spool '
         'taken from different angles and under different lighting conditions. '
         'Analyze ALL images together to determine the true color of the filament material. '
         'Consider that lighting variations may make the color appear different in each photo. '
-        'Determine the single most accurate hex color code that represents this filament. '
-        'Return ONLY the hex code in format #RRGGBB, nothing else.',
-      ),
+        'Determine the single most accurate hex color code that represents this filament.';
+
+    final hasHint = promptHint != null && promptHint.trim().isNotEmpty;
+    final fullPrompt = hasHint
+        ? '$basePrompt\n\nAdditional context from user: ${promptHint.trim()}\n\nReturn ONLY the hex code in format #RRGGBB, nothing else.'
+        : '$basePrompt Return ONLY the hex code in format #RRGGBB, nothing else.';
+
+    final parts = <Part>[
+      TextPart(fullPrompt),
     ];
 
     // Add all images
