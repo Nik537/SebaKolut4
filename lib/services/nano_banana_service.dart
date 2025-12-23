@@ -10,6 +10,8 @@ class NanoBananaService {
   Uint8List? _cartonImageBytes;
   Uint8List? _zoomedSilkTemplateBytes;
   Uint8List? _zoomedCartonImageBytes;
+  Uint8List? _frontTemplateBytes;
+  Uint8List? _frontCartonBytes;
 
   Future<void> initialize() async {
     if (_isInitialized) return;
@@ -25,6 +27,14 @@ class NanoBananaService {
     // Load zoomed carton overlay
     final zoomedCartonData = await rootBundle.load('assets/images/Zoomed Karton.png');
     _zoomedCartonImageBytes = zoomedCartonData.buffer.asUint8List();
+
+    // Load front template
+    final frontTemplateData = await rootBundle.load('assets/images/Kolut in gorila spodaj.png');
+    _frontTemplateBytes = frontTemplateData.buffer.asUint8List();
+
+    // Load front carton overlay
+    final frontCartonData = await rootBundle.load('assets/images/CartonGorilla.png');
+    _frontCartonBytes = frontCartonData.buffer.asUint8List();
 
     _isInitialized = true;
   }
@@ -180,6 +190,126 @@ class NanoBananaService {
     final finalImage = _composite3LayersWithZoomedCarton(colorizedZoomed);
 
     return Uint8List.fromList(img.encodePng(finalImage));
+  }
+
+  /// Generate a front image for export.
+  /// Uses Kolut in gorila spodaj.png + CartonGorilla.png with white background.
+  Future<Uint8List> generateFrontImage({
+    required String hexColor,
+    required double hue,
+    required double saturation,
+    required double brightness,
+    required double contrast,
+    required double sharpness,
+  }) async {
+    if (!_isInitialized) {
+      await initialize();
+    }
+
+    if (_frontTemplateBytes == null || _frontCartonBytes == null) {
+      throw ColorizationException('Front templates not loaded');
+    }
+
+    // Parse hex color
+    final color = _parseHexColor(hexColor);
+
+    // Decode the front template
+    final frontTemplate = img.decodeImage(_frontTemplateBytes!);
+    if (frontTemplate == null) {
+      throw ColorizationException('Failed to decode front template');
+    }
+
+    // Apply colorization to the front template
+    var colorizedFront = _applyColorTint(frontTemplate, color);
+
+    // Apply adjustments (same as regular images)
+    if (hue != 0) {
+      colorizedFront = _adjustHue(colorizedFront, hue);
+    }
+    if (saturation != 0) {
+      colorizedFront = _adjustSaturation(colorizedFront, saturation);
+    }
+    if (brightness != 0) {
+      colorizedFront = _adjustBrightness(colorizedFront, brightness);
+    }
+    if (contrast != 0) {
+      colorizedFront = _adjustContrast(colorizedFront, contrast);
+    }
+    if (sharpness > 0) {
+      colorizedFront = _adjustSharpness(colorizedFront, sharpness);
+    }
+
+    // Composite 3 layers with front carton
+    final finalImage = _composite3LayersWithFrontCarton(colorizedFront);
+
+    return Uint8List.fromList(img.encodePng(finalImage));
+  }
+
+  /// Composite 3 layers using front carton: white background + colorized template + front carton
+  img.Image _composite3LayersWithFrontCarton(img.Image colorizedTemplate) {
+    final width = colorizedTemplate.width;
+    final height = colorizedTemplate.height;
+
+    // Layer 1: Create white background
+    final result = img.Image(width: width, height: height);
+    result.clear(img.ColorRgba8(255, 255, 255, 255));
+
+    // Layer 2: Composite colorized template on top of background (alpha blend)
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        final templatePixel = colorizedTemplate.getPixel(x, y);
+        final templateAlpha = templatePixel.a.toInt();
+
+        if (templateAlpha > 0) {
+          final basePixel = result.getPixel(x, y);
+          final alpha = templateAlpha / 255.0;
+          final invAlpha = 1.0 - alpha;
+
+          final newR = (templatePixel.r.toInt() * alpha + basePixel.r.toInt() * invAlpha).round().clamp(0, 255);
+          final newG = (templatePixel.g.toInt() * alpha + basePixel.g.toInt() * invAlpha).round().clamp(0, 255);
+          final newB = (templatePixel.b.toInt() * alpha + basePixel.b.toInt() * invAlpha).round().clamp(0, 255);
+
+          result.setPixel(x, y, img.ColorRgba8(newR, newG, newB, 255));
+        }
+      }
+    }
+
+    // Layer 3: Composite front carton on top
+    if (_frontCartonBytes != null) {
+      final cartonImage = img.decodeImage(_frontCartonBytes!);
+      if (cartonImage != null) {
+        img.Image carton = cartonImage;
+        if (carton.width != width || carton.height != height) {
+          carton = img.copyResize(
+            carton,
+            width: width,
+            height: height,
+            interpolation: img.Interpolation.cubic,
+          );
+        }
+
+        for (int y = 0; y < height; y++) {
+          for (int x = 0; x < width; x++) {
+            final cartonPixel = carton.getPixel(x, y);
+            final cartonAlpha = cartonPixel.a.toInt();
+
+            if (cartonAlpha > 0) {
+              final basePixel = result.getPixel(x, y);
+              final alpha = cartonAlpha / 255.0;
+              final invAlpha = 1.0 - alpha;
+
+              final newR = (cartonPixel.r.toInt() * alpha + basePixel.r.toInt() * invAlpha).round().clamp(0, 255);
+              final newG = (cartonPixel.g.toInt() * alpha + basePixel.g.toInt() * invAlpha).round().clamp(0, 255);
+              final newB = (cartonPixel.b.toInt() * alpha + basePixel.b.toInt() * invAlpha).round().clamp(0, 255);
+
+              result.setPixel(x, y, img.ColorRgba8(newR, newG, newB, 255));
+            }
+          }
+        }
+      }
+    }
+
+    return result;
   }
 
   /// Composite 3 layers using zoomed carton: white background + colorized template + zoomed carton

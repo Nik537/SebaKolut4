@@ -37,17 +37,6 @@ class ExportController {
       final adjustmentKey = '${group.id}:$selectedGeneration';
       final adjustments = _ref.read(groupAdjustmentsProvider(adjustmentKey));
 
-      // Generate white background version
-      final whiteBytes = await nanoBananaService.applyAdjustments(
-        baseColorizedBytes: image.baseColorizedBytes,
-        hue: adjustments.hue,
-        saturation: adjustments.saturation,
-        brightness: adjustments.brightness,
-        contrast: adjustments.contrast,
-        sharpness: adjustments.sharpness,
-        useWhiteBackground: true,
-      );
-
       // Generate transparent background version
       final transparentBytes = await nanoBananaService.applyAdjustments(
         baseColorizedBytes: image.baseColorizedBytes,
@@ -69,12 +58,22 @@ class ExportController {
         sharpness: adjustments.sharpness,
       );
 
+      // Generate front version (using Kolut in gorila spodaj + CartonGorilla)
+      final frontBytes = await nanoBananaService.generateFrontImage(
+        hexColor: image.appliedHex,
+        hue: adjustments.hue,
+        saturation: adjustments.saturation,
+        brightness: adjustments.brightness,
+        contrast: adjustments.contrast,
+        sharpness: adjustments.sharpness,
+      );
+
       exportData.add(ExportImageData(
         groupName: group.name,
         sku: group.sku,
-        whiteBytes: whiteBytes,
         transparentBytes: transparentBytes,
         zoomBytes: zoomBytes,
+        frontBytes: frontBytes,
       ));
     }
 
@@ -101,17 +100,6 @@ class ExportController {
     final adjustmentKey = '$groupId:$generationIndex';
     final adjustments = _ref.read(groupAdjustmentsProvider(adjustmentKey));
 
-    // Generate white background version
-    final whiteBytes = await nanoBananaService.applyAdjustments(
-      baseColorizedBytes: colorizedImage.baseColorizedBytes,
-      hue: adjustments.hue,
-      saturation: adjustments.saturation,
-      brightness: adjustments.brightness,
-      contrast: adjustments.contrast,
-      sharpness: adjustments.sharpness,
-      useWhiteBackground: true,
-    );
-
     // Generate transparent background version
     final transparentBytes = await nanoBananaService.applyAdjustments(
       baseColorizedBytes: colorizedImage.baseColorizedBytes,
@@ -133,12 +121,22 @@ class ExportController {
       sharpness: adjustments.sharpness,
     );
 
+    // Generate front version (using Kolut in gorila spodaj + CartonGorilla)
+    final frontBytes = await nanoBananaService.generateFrontImage(
+      hexColor: colorizedImage.appliedHex,
+      hue: adjustments.hue,
+      saturation: adjustments.saturation,
+      brightness: adjustments.brightness,
+      contrast: adjustments.contrast,
+      sharpness: adjustments.sharpness,
+    );
+
     final exportData = ExportImageData(
       groupName: group.name,
       sku: group.sku,
-      whiteBytes: whiteBytes,
       transparentBytes: transparentBytes,
       zoomBytes: zoomBytes,
+      frontBytes: frontBytes,
     );
 
     await exportService.exportDualBackground(images: [exportData]);
@@ -149,15 +147,15 @@ class ExportController {
 class ExportImageData {
   final String groupName;
   final String sku;
-  final Uint8List whiteBytes;
   final Uint8List transparentBytes;
   final Uint8List zoomBytes;
+  final Uint8List frontBytes;
 
   ExportImageData({
     required this.groupName,
     required this.sku,
-    required this.whiteBytes,
     required this.transparentBytes,
     required this.zoomBytes,
+    required this.frontBytes,
   });
 }
