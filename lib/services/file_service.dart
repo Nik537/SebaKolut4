@@ -20,7 +20,7 @@ Uint8List _generateThumbnailIsolate(Uint8List bytes) {
     height: image.height >= image.width ? 200 : null,
   );
 
-  return Uint8List.fromList(img.encodeJpg(thumbnail, quality: 80));
+  return Uint8List.fromList(img.encodePng(thumbnail));
 }
 
 class FileService {
