@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +11,102 @@ import '../models/models.dart';
 import '../services/image_cache_service.dart';
 import '../widgets/log_viewer.dart';
 import 'export_screen.dart';
+
+/// Build a 5x4 color matrix for GPU-based image adjustments.
+/// Returns a 20-element list for use with ColorFilter.matrix().
+List<double> buildColorMatrix({
+  double hue = 0.0,
+  double saturation = 0.0,
+  double brightness = 0.0,
+  double contrast = 0.0,
+}) {
+  // Start with identity matrix
+  // Format: [R, G, B, A, offset] for each of R, G, B, A output channels
+  final matrix = <double>[
+    1, 0, 0, 0, 0, // R
+    0, 1, 0, 0, 0, // G
+    0, 0, 1, 0, 0, // B
+    0, 0, 0, 1, 0, // A
+  ];
+
+  // Apply brightness (add to offset, scale by 255)
+  final b = brightness * 255;
+  matrix[4] += b;
+  matrix[9] += b;
+  matrix[14] += b;
+
+  // Apply contrast (scale around 0.5)
+  final c = 1.0 + contrast;
+  final t = (1.0 - c) * 127.5;
+  matrix[0] *= c;
+  matrix[6] *= c;
+  matrix[12] *= c;
+  matrix[4] += t;
+  matrix[9] += t;
+  matrix[14] += t;
+
+  // Apply saturation
+  // Blend towards grayscale using luminance weights
+  const lr = 0.2126;
+  const lg = 0.7152;
+  const lb = 0.0722;
+  final s = 1.0 + saturation;
+  final sr = (1 - s) * lr;
+  final sg = (1 - s) * lg;
+  final sb = (1 - s) * lb;
+
+  final m0 = matrix[0], m1 = matrix[1], m2 = matrix[2];
+  final m5 = matrix[5], m6 = matrix[6], m7 = matrix[7];
+  final m10 = matrix[10], m11 = matrix[11], m12 = matrix[12];
+
+  matrix[0] = m0 * (sr + s) + m1 * sr + m2 * sr;
+  matrix[1] = m0 * sg + m1 * (sg + s) + m2 * sg;
+  matrix[2] = m0 * sb + m1 * sb + m2 * (sb + s);
+
+  matrix[5] = m5 * (sr + s) + m6 * sr + m7 * sr;
+  matrix[6] = m5 * sg + m6 * (sg + s) + m7 * sg;
+  matrix[7] = m5 * sb + m6 * sb + m7 * (sb + s);
+
+  matrix[10] = m10 * (sr + s) + m11 * sr + m12 * sr;
+  matrix[11] = m10 * sg + m11 * (sg + s) + m12 * sg;
+  matrix[12] = m10 * sb + m11 * sb + m12 * (sb + s);
+
+  // Apply hue rotation
+  if (hue != 0.0) {
+    final angle = hue * math.pi; // Convert to radians (-0.2 to 0.2 -> -0.63 to 0.63 rad)
+    final cosA = math.cos(angle);
+    final sinA = math.sin(angle);
+
+    // Hue rotation matrix in RGB space
+    final h00 = 0.213 + cosA * 0.787 - sinA * 0.213;
+    final h01 = 0.715 - cosA * 0.715 - sinA * 0.715;
+    final h02 = 0.072 - cosA * 0.072 + sinA * 0.928;
+    final h10 = 0.213 - cosA * 0.213 + sinA * 0.143;
+    final h11 = 0.715 + cosA * 0.285 + sinA * 0.140;
+    final h12 = 0.072 - cosA * 0.072 - sinA * 0.283;
+    final h20 = 0.213 - cosA * 0.213 - sinA * 0.787;
+    final h21 = 0.715 - cosA * 0.715 + sinA * 0.715;
+    final h22 = 0.072 + cosA * 0.928 + sinA * 0.072;
+
+    final r0 = matrix[0], r1 = matrix[1], r2 = matrix[2];
+    final g0 = matrix[5], g1 = matrix[6], g2 = matrix[7];
+    final b0 = matrix[10], b1 = matrix[11], b2 = matrix[12];
+
+    matrix[0] = r0 * h00 + r1 * h10 + r2 * h20;
+    matrix[1] = r0 * h01 + r1 * h11 + r2 * h21;
+    matrix[2] = r0 * h02 + r1 * h12 + r2 * h22;
+
+    matrix[5] = g0 * h00 + g1 * h10 + g2 * h20;
+    matrix[6] = g0 * h01 + g1 * h11 + g2 * h21;
+    matrix[7] = g0 * h02 + g1 * h12 + g2 * h22;
+
+    matrix[10] = b0 * h00 + b1 * h10 + b2 * h20;
+    matrix[11] = b0 * h01 + b1 * h11 + b2 * h21;
+    matrix[12] = b0 * h02 + b1 * h12 + b2 * h22;
+  }
+
+  return matrix;
+}
 
 class ProcessingScreen extends ConsumerStatefulWidget {
   const ProcessingScreen({super.key});
@@ -585,7 +682,8 @@ class _ResultWithSliders extends ConsumerWidget {
     // Use generation-specific adjustment key
     final adjustmentKey = '$groupId:$generationIndex';
     final adjustments = ref.watch(groupAdjustmentsProvider(adjustmentKey));
-    final adjustedImageAsync = ref.watch(adjustedImageByGenerationProvider((
+    // Use base colorized bytes for instant GPU-based preview
+    final baseBytes = ref.watch(baseColorizedBytesProvider((
       groupId: groupId,
       generationIndex: generationIndex,
     )));
@@ -649,30 +747,30 @@ class _ResultWithSliders extends ConsumerWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Result image (50% width)
+            // Result image (50% width) - GPU-based instant preview
             Expanded(
               flex: 1,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: adjustedImageAsync.when(
-                  data: (bytes) => bytes != null
-                      ? Image.memory(
-                          bytes,
+                child: baseBytes != null
+                    ? ColorFiltered(
+                        colorFilter: ColorFilter.matrix(buildColorMatrix(
+                          hue: adjustments.hue,
+                          saturation: adjustments.saturation,
+                          brightness: adjustments.brightness,
+                          contrast: adjustments.contrast,
+                        )),
+                        child: Image.memory(
+                          baseBytes,
                           fit: BoxFit.contain,
                           width: double.infinity,
-                        )
-                      : const SizedBox(),
-                  loading: () => Container(
-                    height: 200,
-                    color: Colors.grey.shade200,
-                    child: const Center(child: CircularProgressIndicator()),
-                  ),
-                  error: (e, _) => Container(
-                    height: 200,
-                    color: Colors.grey.shade200,
-                    child: Center(child: Text('Error: $e')),
-                  ),
-                ),
+                        ),
+                      )
+                    : Container(
+                        height: 200,
+                        color: Colors.grey.shade200,
+                        child: const Center(child: CircularProgressIndicator()),
+                      ),
               ),
             ),
             const SizedBox(width: 24),
@@ -939,14 +1037,11 @@ class _AdjustmentButtonsState extends State<_AdjustmentButtons> {
             min: widget.min,
             max: widget.max,
             onChanged: (v) {
-              // Update local state only for smooth dragging
               setState(() {
                 _localValue = v;
                 _textController.text = v.toStringAsFixed(2);
               });
-            },
-            onChangeEnd: (v) {
-              // Trigger provider update when slider is released
+              // Trigger provider update immediately for instant preview
               widget.onChanged(v);
             },
           ),

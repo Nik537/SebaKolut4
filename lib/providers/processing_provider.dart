@@ -774,3 +774,12 @@ final adjustedImageByGenerationProvider =
     useWhiteBackground: true,
   );
 });
+
+// Provider for base colorized bytes (no adjustments applied) for GPU-based preview
+final baseColorizedBytesProvider =
+    Provider.family<Uint8List?, ({String groupId, int generationIndex})>((ref, params) {
+  final colorizedImage = ref.watch(colorizedImageByGenerationProvider(params));
+  if (colorizedImage == null) return null;
+  final imageCache = ref.read(imageCacheServiceProvider);
+  return imageCache.getBaseColorizedImage(colorizedImage.id);
+});
