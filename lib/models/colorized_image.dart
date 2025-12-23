@@ -1,12 +1,11 @@
-import 'dart:typed_data';
-
+/// Lightweight model for colorized images.
+/// Binary data (bytes, baseColorizedBytes) is stored separately in ImageCacheService
+/// to avoid expensive state copies when provider state changes.
 class ColorizedImage {
   final String id;
   final String sourceImageId;
   final String groupId;
   final String appliedHex;
-  final Uint8List bytes;
-  final Uint8List baseColorizedBytes; // Colorized image BEFORE carton overlay
   final DateTime createdAt;
   final int generationIndex; // 0, 1, or 2 for Generation 1, 2, 3
 
@@ -15,8 +14,6 @@ class ColorizedImage {
     required this.sourceImageId,
     required this.groupId,
     required this.appliedHex,
-    required this.bytes,
-    required this.baseColorizedBytes,
     required this.createdAt,
     this.generationIndex = 0,
   });
@@ -26,8 +23,6 @@ class ColorizedImage {
     String? sourceImageId,
     String? groupId,
     String? appliedHex,
-    Uint8List? bytes,
-    Uint8List? baseColorizedBytes,
     DateTime? createdAt,
     int? generationIndex,
   }) {
@@ -36,8 +31,6 @@ class ColorizedImage {
       sourceImageId: sourceImageId ?? this.sourceImageId,
       groupId: groupId ?? this.groupId,
       appliedHex: appliedHex ?? this.appliedHex,
-      bytes: bytes ?? this.bytes,
-      baseColorizedBytes: baseColorizedBytes ?? this.baseColorizedBytes,
       createdAt: createdAt ?? this.createdAt,
       generationIndex: generationIndex ?? this.generationIndex,
     );

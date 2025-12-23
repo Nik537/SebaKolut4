@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/export_service.dart';
+import '../services/image_cache_service.dart';
 import 'processing_provider.dart';
 import 'groups_provider.dart';
 
@@ -21,6 +22,7 @@ class ExportController {
     final exportService = _ref.read(exportServiceProvider);
     final nanoBananaService = _ref.read(nanoBananaServiceProvider);
     final colorizedNotifier = _ref.read(colorizedImagesProvider.notifier);
+    final imageCache = _ref.read(imageCacheServiceProvider);
 
     // Prepare export data: for each group, export only the selected generation
     final exportData = <ExportImageData>[];
@@ -33,13 +35,17 @@ class ExportController {
       final image = colorizedNotifier.getByGroupAndGeneration(group.id, selectedGeneration);
       if (image == null) continue;
 
+      // Get base colorized bytes from cache
+      final baseColorizedBytes = imageCache.getBaseColorizedImage(image.id);
+      if (baseColorizedBytes == null) continue;
+
       // Use generation-specific adjustment key
       final adjustmentKey = '${group.id}:$selectedGeneration';
       final adjustments = _ref.read(groupAdjustmentsProvider(adjustmentKey));
 
       // Generate transparent background version
       final transparentBytes = await nanoBananaService.applyAdjustments(
-        baseColorizedBytes: image.baseColorizedBytes,
+        baseColorizedBytes: baseColorizedBytes,
         hue: adjustments.hue,
         saturation: adjustments.saturation,
         brightness: adjustments.brightness,
@@ -89,6 +95,13 @@ class ExportController {
       throw Exception('No colorized image found for group $groupId, generation $generationIndex');
     }
 
+    // Get base colorized bytes from cache
+    final imageCache = _ref.read(imageCacheServiceProvider);
+    final baseColorizedBytes = imageCache.getBaseColorizedImage(colorizedImage.id);
+    if (baseColorizedBytes == null) {
+      throw Exception('No base colorized bytes found in cache for image ${colorizedImage.id}');
+    }
+
     // Get group info for name and SKU
     final groups = _ref.read(groupsProvider);
     final group = groups.firstWhere((g) => g.id == groupId);
@@ -102,7 +115,7 @@ class ExportController {
 
     // Generate transparent background version
     final transparentBytes = await nanoBananaService.applyAdjustments(
-      baseColorizedBytes: colorizedImage.baseColorizedBytes,
+      baseColorizedBytes: baseColorizedBytes,
       hue: adjustments.hue,
       saturation: adjustments.saturation,
       brightness: adjustments.brightness,

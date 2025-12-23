@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +7,7 @@ import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import '../providers/providers.dart';
 import '../models/models.dart';
+import '../services/image_cache_service.dart';
 import '../widgets/log_viewer.dart';
 import 'export_screen.dart';
 
@@ -194,8 +196,10 @@ class _GroupProcessingViewState extends ConsumerState<_GroupProcessingView>
 
   void _onTabChanged() {
     if (!_generationTabController.indexIsChanging) {
-      ref.read(selectedGenerationProvider(widget.group.id).notifier).state =
-          _generationTabController.index;
+      final newIndex = _generationTabController.index;
+      ref.read(selectedGenerationProvider(widget.group.id).notifier).state = newIndex;
+      // Also update the aggregated map for efficient export selection
+      ref.read(allSelectedGenerationsProvider.notifier).setGeneration(widget.group.id, newIndex);
     }
   }
 
@@ -264,18 +268,32 @@ class _GroupProcessingViewState extends ConsumerState<_GroupProcessingView>
                   separatorBuilder: (context, index) => const SizedBox(width: 12),
                   itemBuilder: (context, index) {
                     final image = groupImages[index];
+                    final imageCache = ref.read(imageCacheServiceProvider);
+                    final fullBytes = imageCache.getFullImage(image.id);
+                    // Use thumbnail as fallback for display
+                    final displayBytes = fullBytes ?? imageCache.getThumbnail(image.id);
                     return GestureDetector(
-                      onTap: () => _openImageInSystemViewer(image.bytes, image.filename),
+                      onTap: () {
+                        if (fullBytes != null) {
+                          _openImageInSystemViewer(fullBytes, image.filename);
+                        }
+                      },
                       child: MouseRegion(
                         cursor: SystemMouseCursors.click,
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(8),
-                          child: Image.memory(
-                            image.bytes,
-                            width: 240,
-                            height: 240,
-                            fit: BoxFit.cover,
-                          ),
+                          child: displayBytes != null
+                              ? Image.memory(
+                                  displayBytes,
+                                  width: 240,
+                                  height: 240,
+                                  fit: BoxFit.cover,
+                                )
+                              : const SizedBox(
+                                  width: 240,
+                                  height: 240,
+                                  child: Center(child: Icon(Icons.image_not_supported)),
+                                ),
                         ),
                       ),
                     );

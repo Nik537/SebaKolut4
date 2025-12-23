@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import '../providers/providers.dart';
 import '../services/file_service.dart';
+import '../services/image_cache_service.dart';
 import '../widgets/log_viewer.dart';
 import 'grouping_screen.dart';
 
@@ -190,6 +191,9 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
   }
 
   Widget _buildImageThumbnail(image) {
+    final imageCache = ref.read(imageCacheServiceProvider);
+    final thumbnailBytes = imageCache.getThumbnail(image.id);
+
     return Stack(
       children: [
         Container(
@@ -199,12 +203,14 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(7),
-            child: Image.memory(
-              image.thumbnailBytes,
-              fit: BoxFit.cover,
-              width: double.infinity,
-              height: double.infinity,
-            ),
+            child: thumbnailBytes != null
+                ? Image.memory(
+                    thumbnailBytes,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                  )
+                : const Center(child: Icon(Icons.image_not_supported)),
           ),
         ),
         // Remove button

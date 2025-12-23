@@ -1,7 +1,9 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 import '../models/models.dart';
 import '../services/services.dart';
+import '../services/image_cache_service.dart';
 import 'images_provider.dart';
 import 'groups_provider.dart';
 import 'log_provider.dart';
@@ -46,21 +48,32 @@ class ImageProcessingStateNotifier
 // Colorized images provider
 final colorizedImagesProvider =
     StateNotifierProvider<ColorizedImagesNotifier, List<ColorizedImage>>((ref) {
-  return ColorizedImagesNotifier();
+  final imageCache = ref.watch(imageCacheServiceProvider);
+  return ColorizedImagesNotifier(imageCache);
 });
 
 class ColorizedImagesNotifier extends StateNotifier<List<ColorizedImage>> {
-  ColorizedImagesNotifier() : super([]);
+  final ImageCacheService _imageCache;
+
+  ColorizedImagesNotifier(this._imageCache) : super([]);
 
   void addColorizedImage(ColorizedImage image) {
     state = [...state, image];
   }
 
-  void updateForGroup(String groupId, ColorizedImage newImage) {
+  void updateForGroup(String groupId, ColorizedImage newImage, {String? oldImageId}) {
+    // Remove old image from cache if provided
+    if (oldImageId != null) {
+      _imageCache.removeColorizedImage(oldImageId);
+    }
     state = state.map((img) => img.groupId == groupId ? newImage : img).toList();
   }
 
-  void updateForGroupAndGeneration(String groupId, int generationIndex, ColorizedImage newImage) {
+  void updateForGroupAndGeneration(String groupId, int generationIndex, ColorizedImage newImage, {String? oldImageId}) {
+    // Remove old image from cache if provided
+    if (oldImageId != null) {
+      _imageCache.removeColorizedImage(oldImageId);
+    }
     state = state.map((img) {
       if (img.groupId == groupId && img.generationIndex == generationIndex) {
         return newImage;
@@ -70,10 +83,14 @@ class ColorizedImagesNotifier extends StateNotifier<List<ColorizedImage>> {
   }
 
   void removeGenerationsForGroup(String groupId) {
+    // Remove from cache first
+    final toRemove = state.where((img) => img.groupId == groupId).map((img) => img.id).toList();
+    _imageCache.removeColorizedImagesForGroup(toRemove);
     state = state.where((img) => img.groupId != groupId).toList();
   }
 
   void reset() {
+    _imageCache.clearColorizedImages();
     state = [];
   }
 
@@ -103,14 +120,32 @@ final colorizedImagesByGroupProvider =
 final selectedGenerationProvider =
     StateProvider.family<int, String>((ref, groupId) => 0);
 
+// Map of all selected generations (groupId -> generationIndex)
+// This avoids loop-watching in selectedColorizedImagesProvider
+final allSelectedGenerationsProvider = StateNotifierProvider<AllSelectedGenerationsNotifier, Map<String, int>>((ref) {
+  return AllSelectedGenerationsNotifier();
+});
+
+class AllSelectedGenerationsNotifier extends StateNotifier<Map<String, int>> {
+  AllSelectedGenerationsNotifier() : super({});
+
+  void setGeneration(String groupId, int generationIndex) {
+    state = {...state, groupId: generationIndex};
+  }
+
+  int getGeneration(String groupId) => state[groupId] ?? 0;
+}
+
 // Get only the selected colorized images (one per group) for export
+// Optimized to avoid loop-watching
 final selectedColorizedImagesProvider = Provider<List<ColorizedImage>>((ref) {
   final groups = ref.watch(groupsProvider);
   final colorized = ref.watch(colorizedImagesProvider);
+  final allSelectedGenerations = ref.watch(allSelectedGenerationsProvider);
 
   final selected = <ColorizedImage>[];
   for (final group in groups) {
-    final selectedGeneration = ref.watch(selectedGenerationProvider(group.id));
+    final selectedGeneration = allSelectedGenerations[group.id] ?? 0;
     final image = colorized.where(
       (img) => img.groupId == group.id && img.generationIndex == selectedGeneration,
     ).firstOrNull;
@@ -141,10 +176,12 @@ final processingControllerProvider = Provider<ProcessingController>((ref) {
 
 class ProcessingController {
   final Ref _ref;
+  final _uuid = const Uuid();
 
   ProcessingController(this._ref);
 
   LogNotifier get _log => _ref.read(logProvider.notifier);
+  ImageCacheService get _imageCache => _ref.read(imageCacheServiceProvider);
 
   Future<void> processAllGroups() async {
     final groups = _ref.read(groupsProvider);
@@ -208,8 +245,16 @@ class ProcessingController {
     }
 
     try {
+      // Get image bytes from cache for Gemini
+      final imageBytes = <Uint8List>[];
+      for (final img in groupImages) {
+        final bytes = _imageCache.getFullImage(img.id);
+        if (bytes != null) {
+          imageBytes.add(bytes);
+        }
+      }
+
       // Extract single color from Gemini (initial processing creates 1 generation only)
-      final imageBytes = groupImages.map((img) => img.bytes).toList();
       final hexColor = await geminiService.extractColorFromMultipleImages(imageBytes);
 
       _log.success('Color determined: $hexColor');
@@ -229,15 +274,29 @@ class ProcessingController {
       // Create single colorized image
       _log.info('Colorizing template with $hexColor...');
 
-      final colorizedImage = await nanoBananaService.colorizeTemplate(
+      final colorizationResult = await nanoBananaService.colorizeTemplate(
         templateImageBytes: templateBytes,
         hexColor: hexColor,
+      );
+
+      // Create colorized image metadata and store bytes in cache
+      final colorizedImageId = _uuid.v4();
+      _imageCache.cacheColorizedImage(
+        colorizedImageId,
+        colorizationResult.outputBytes,
+        colorizationResult.baseColorizedBytes,
+      );
+
+      final colorizedImage = ColorizedImage(
+        id: colorizedImageId,
         sourceImageId: groupImages.first.id,
         groupId: group.id,
+        appliedHex: hexColor,
+        createdAt: DateTime.now(),
         generationIndex: 0,
       );
 
-      _log.success('Template colorized (${colorizedImage.bytes.length} bytes)');
+      _log.success('Template colorized (${colorizationResult.outputBytes.length} bytes)');
 
       colorizedNotifier.addColorizedImage(colorizedImage);
 
@@ -382,18 +441,36 @@ class ProcessingController {
       // Mark first image as colorizing (to show progress)
       processingNotifier.setStatus(groupImages.first.id, ProcessingStatus.colorizing, extractedHex: newHexColor);
 
-      final colorizedImage = await nanoBananaService.colorizeTemplate(
+      // Get old image ID to clean up cache
+      final oldImage = colorizedNotifier.getByGroupAndGeneration(groupId, generationIndex);
+      final oldImageId = oldImage?.id;
+
+      final colorizationResult = await nanoBananaService.colorizeTemplate(
         templateImageBytes: templateBytes,
         hexColor: newHexColor,
+      );
+
+      // Create new colorized image metadata and store bytes in cache
+      final colorizedImageId = _uuid.v4();
+      _imageCache.cacheColorizedImage(
+        colorizedImageId,
+        colorizationResult.outputBytes,
+        colorizationResult.baseColorizedBytes,
+      );
+
+      final colorizedImage = ColorizedImage(
+        id: colorizedImageId,
         sourceImageId: groupImages.first.id,
         groupId: groupId,
+        appliedHex: newHexColor,
+        createdAt: DateTime.now(),
         generationIndex: generationIndex,
       );
 
       _log.success('Re-colorized generation ${generationIndex + 1} with $newHexColor');
 
       // Update the colorized image for this specific generation
-      colorizedNotifier.updateForGroupAndGeneration(groupId, generationIndex, colorizedImage);
+      colorizedNotifier.updateForGroupAndGeneration(groupId, generationIndex, colorizedImage, oldImageId: oldImageId);
 
       // Mark all images in the group as completed
       for (final image in groupImages) {
@@ -446,7 +523,7 @@ class ProcessingController {
       geminiService.initialize();
       await nanoBananaService.initialize();
 
-      // Remove existing generations for this group
+      // Remove existing generations for this group (also cleans cache)
       colorizedNotifier.removeGenerationsForGroup(groupId);
 
       // Reset adjustments for all 3 generations
@@ -455,8 +532,15 @@ class ProcessingController {
         _ref.read(imageAdjustmentsProvider.notifier).reset(adjustmentKey);
       }
 
-      // Extract 3 unique colors
-      final imageBytes = groupImages.map((img) => img.bytes).toList();
+      // Get image bytes from cache for Gemini
+      final imageBytes = <Uint8List>[];
+      for (final img in groupImages) {
+        final bytes = _imageCache.getFullImage(img.id);
+        if (bytes != null) {
+          imageBytes.add(bytes);
+        }
+      }
+
       final uniqueColors = await _extractMultipleUniqueColors(geminiService, imageBytes);
 
       _log.success('3 unique colors determined: ${uniqueColors.join(', ')}');
@@ -478,11 +562,25 @@ class ProcessingController {
         final hexColor = uniqueColors[i];
         _log.info('Colorizing with $hexColor (generation ${i + 1}/3)...');
 
-        final colorizedImage = await nanoBananaService.colorizeTemplate(
+        final colorizationResult = await nanoBananaService.colorizeTemplate(
           templateImageBytes: templateBytes,
           hexColor: hexColor,
+        );
+
+        // Create colorized image metadata and store bytes in cache
+        final colorizedImageId = _uuid.v4();
+        _imageCache.cacheColorizedImage(
+          colorizedImageId,
+          colorizationResult.outputBytes,
+          colorizationResult.baseColorizedBytes,
+        );
+
+        final colorizedImage = ColorizedImage(
+          id: colorizedImageId,
           sourceImageId: groupImages.first.id,
           groupId: groupId,
+          appliedHex: hexColor,
+          createdAt: DateTime.now(),
           generationIndex: i,
         );
 
@@ -632,14 +730,18 @@ final adjustedImageBytesProvider =
     FutureProvider.family<Uint8List?, String>((ref, groupId) async {
   final colorizedImages = ref.watch(colorizedImagesByGroupProvider(groupId));
   final adjustments = ref.watch(groupAdjustmentsProvider(groupId));
+  final imageCache = ref.read(imageCacheServiceProvider);
 
   if (colorizedImages.isEmpty) return null;
 
   final colorizedImage = colorizedImages.first;
+  final baseColorizedBytes = imageCache.getBaseColorizedImage(colorizedImage.id);
+
+  if (baseColorizedBytes == null) return null;
 
   final nanoBananaService = ref.read(nanoBananaServiceProvider);
   return nanoBananaService.applyAdjustments(
-    baseColorizedBytes: colorizedImage.baseColorizedBytes,
+    baseColorizedBytes: baseColorizedBytes,
     hue: adjustments.hue,
     saturation: adjustments.saturation,
     brightness: adjustments.brightness,
@@ -654,12 +756,16 @@ final adjustedImageByGenerationProvider =
     FutureProvider.family<Uint8List?, ({String groupId, int generationIndex})>((ref, params) async {
   final colorizedImage = ref.watch(colorizedImageByGenerationProvider(params));
   final adjustments = ref.watch(generationAdjustmentsProvider(params));
+  final imageCache = ref.read(imageCacheServiceProvider);
 
   if (colorizedImage == null) return null;
 
+  final baseColorizedBytes = imageCache.getBaseColorizedImage(colorizedImage.id);
+  if (baseColorizedBytes == null) return null;
+
   final nanoBananaService = ref.read(nanoBananaServiceProvider);
   return nanoBananaService.applyAdjustments(
-    baseColorizedBytes: colorizedImage.baseColorizedBytes,
+    baseColorizedBytes: baseColorizedBytes,
     hue: adjustments.hue,
     saturation: adjustments.saturation,
     brightness: adjustments.brightness,

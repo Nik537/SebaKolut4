@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/providers.dart';
 import '../models/models.dart';
+import '../services/image_cache_service.dart';
 import '../widgets/log_viewer.dart';
 import 'processing_screen.dart';
 
@@ -216,6 +217,9 @@ class _SelectableThumbnail extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final imageCache = ref.read(imageCacheServiceProvider);
+    final thumbnailBytes = imageCache.getThumbnail(image.id);
+
     return GestureDetector(
       onTap: () {
         ref.read(importedImagesProvider.notifier).toggleSelection(image.id);
@@ -235,12 +239,14 @@ class _SelectableThumbnail extends ConsumerWidget {
             // Image
             ClipRRect(
               borderRadius: BorderRadius.circular(6),
-              child: Image.memory(
-                image.thumbnailBytes,
-                fit: BoxFit.cover,
-                width: double.infinity,
-                height: double.infinity,
-              ),
+              child: thumbnailBytes != null
+                  ? Image.memory(
+                      thumbnailBytes,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                    )
+                  : const Center(child: Icon(Icons.image_not_supported)),
             ),
             // Checkbox
             Positioned(
@@ -413,16 +419,24 @@ class _GroupCardState extends ConsumerState<_GroupCard> {
                 itemCount: groupImages.length.clamp(0, 5),
                 itemBuilder: (context, index) {
                   final image = groupImages[index];
+                  final imageCache = ref.read(imageCacheServiceProvider);
+                  final thumbnailBytes = imageCache.getThumbnail(image.id);
                   return Padding(
                     padding: const EdgeInsets.only(right: 4),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(4),
-                      child: Image.memory(
-                        image.thumbnailBytes,
-                        width: 50,
-                        height: 50,
-                        fit: BoxFit.cover,
-                      ),
+                      child: thumbnailBytes != null
+                          ? Image.memory(
+                              thumbnailBytes,
+                              width: 50,
+                              height: 50,
+                              fit: BoxFit.cover,
+                            )
+                          : const SizedBox(
+                              width: 50,
+                              height: 50,
+                              child: Icon(Icons.image_not_supported, size: 24),
+                            ),
                     ),
                   );
                 },

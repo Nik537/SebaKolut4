@@ -1,18 +1,25 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/imported_image.dart';
 import '../services/file_service.dart';
+import '../services/image_cache_service.dart';
 
-final fileServiceProvider = Provider<FileService>((ref) => FileService());
+final fileServiceProvider = Provider<FileService>((ref) {
+  final imageCache = ref.watch(imageCacheServiceProvider);
+  return FileService(imageCache);
+});
 
 final importedImagesProvider =
     StateNotifierProvider<ImportedImagesNotifier, List<ImportedImage>>((ref) {
-  return ImportedImagesNotifier(ref.watch(fileServiceProvider));
+  final fileService = ref.watch(fileServiceProvider);
+  final imageCache = ref.watch(imageCacheServiceProvider);
+  return ImportedImagesNotifier(fileService, imageCache);
 });
 
 class ImportedImagesNotifier extends StateNotifier<List<ImportedImage>> {
   final FileService _fileService;
+  final ImageCacheService _imageCache;
 
-  ImportedImagesNotifier(this._fileService) : super([]);
+  ImportedImagesNotifier(this._fileService, this._imageCache) : super([]);
 
   Future<void> pickAndAddImages() async {
     final images = await _fileService.pickImages();
@@ -25,6 +32,8 @@ class ImportedImagesNotifier extends StateNotifier<List<ImportedImage>> {
   }
 
   void removeImage(String id) {
+    // Remove from cache first
+    _imageCache.removeImportedImage(id);
     state = state.where((img) => img.id != id).toList();
   }
 
@@ -51,6 +60,8 @@ class ImportedImagesNotifier extends StateNotifier<List<ImportedImage>> {
   }
 
   void reset() {
+    // Clear all cached imported images
+    _imageCache.clearImportedImages();
     state = [];
   }
 

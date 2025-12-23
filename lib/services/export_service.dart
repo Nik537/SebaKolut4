@@ -3,9 +3,33 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:file_saver/file_saver.dart';
 import 'package:image/image.dart' as img;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, compute;
 import '../providers/export_provider.dart';
 import 'webp_encoder_service.dart';
+
+/// Top-level isolate function for image resize (required for compute)
+Uint8List _resizeImageIsolate(Map<String, dynamic> params) {
+  final imageBytes = params['imageBytes'] as Uint8List;
+  final targetSize = params['targetSize'] as int;
+
+  var image = img.decodeImage(imageBytes);
+  if (image == null) {
+    throw Exception('Failed to decode image');
+  }
+
+  // Resize to target size if not already that size
+  if (image.width != targetSize || image.height != targetSize) {
+    image = img.copyResize(
+      image,
+      width: targetSize,
+      height: targetSize,
+      interpolation: img.Interpolation.cubic,
+    );
+  }
+
+  // Encode as PNG (lossless intermediate format)
+  return Uint8List.fromList(img.encodePng(image));
+}
 
 class ExportService {
   static const int exportSizeSmall = 1080;  // For zoom and front (white bg)
@@ -20,23 +44,11 @@ class ExportService {
     required bool preserveTransparency,
     required int targetSize,
   }) async {
-    var image = img.decodeImage(imageBytes);
-    if (image == null) {
-      throw ExportException('Failed to decode image');
-    }
-
-    // Resize to target size if not already that size
-    if (image.width != targetSize || image.height != targetSize) {
-      image = img.copyResize(
-        image,
-        width: targetSize,
-        height: targetSize,
-        interpolation: img.Interpolation.cubic,
-      );
-    }
-
-    // Encode as PNG first (lossless intermediate format)
-    final pngBytes = Uint8List.fromList(img.encodePng(image));
+    // Run image decoding/resizing in a separate isolate to avoid blocking UI
+    final pngBytes = await compute(_resizeImageIsolate, {
+      'imageBytes': imageBytes,
+      'targetSize': targetSize,
+    });
 
     // Convert to WebP
     final webpBytes = await _webpEncoder.encodeToWebp(

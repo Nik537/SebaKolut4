@@ -1,6 +1,8 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/providers.dart';
+import '../services/image_cache_service.dart';
 import '../widgets/log_viewer.dart';
 
 class ExportScreen extends ConsumerStatefulWidget {
@@ -214,12 +216,25 @@ class _ExportPreviewCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final hexClean = image.appliedHex.replaceAll('#', '');
+    final imageCache = ref.read(imageCacheServiceProvider);
+    final colorizedBytes = imageCache.getColorizedImage(image.id);
 
     // Use adjusted image bytes for the specific generation
     final adjustedBytesAsync = ref.watch(adjustedImageByGenerationProvider((
       groupId: image.groupId,
       generationIndex: image.generationIndex,
     )));
+
+    Widget buildFallbackImage() {
+      if (colorizedBytes != null) {
+        return Image.memory(
+          colorizedBytes,
+          fit: BoxFit.cover,
+          width: double.infinity,
+        );
+      }
+      return const Center(child: Icon(Icons.image_not_supported));
+    }
 
     return Card(
       child: Column(
@@ -235,17 +250,9 @@ class _ExportPreviewCard extends ConsumerWidget {
                         fit: BoxFit.cover,
                         width: double.infinity,
                       )
-                    : Image.memory(
-                        image.bytes,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                      ),
+                    : buildFallbackImage(),
                 loading: () => const Center(child: CircularProgressIndicator()),
-                error: (_, __) => Image.memory(
-                  image.bytes,
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                ),
+                error: (_, __) => buildFallbackImage(),
               ),
             ),
           ),
