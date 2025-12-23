@@ -783,3 +783,9 @@ final baseColorizedBytesProvider =
   final imageCache = ref.read(imageCacheServiceProvider);
   return imageCache.getBaseColorizedImage(colorizedImage.id);
 });
+
+// Provider for carton overlay bytes (for GPU-based preview)
+final cartonOverlayBytesProvider = Provider<Uint8List?>((ref) {
+  final nanoBananaService = ref.watch(nanoBananaServiceProvider);
+  return nanoBananaService.cartonImageBytes;
+});

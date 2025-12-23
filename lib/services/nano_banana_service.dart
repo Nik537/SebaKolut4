@@ -581,6 +581,9 @@ class NanoBananaService {
   Uint8List? _frontTemplateBytes;
   Uint8List? _frontCartonBytes;
 
+  /// Get the carton overlay image bytes (for GPU-based preview)
+  Uint8List? get cartonImageBytes => _cartonImageBytes;
+
   Future<void> initialize() async {
     if (_isInitialized) return;
 

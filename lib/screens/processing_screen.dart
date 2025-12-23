@@ -687,6 +687,8 @@ class _ResultWithSliders extends ConsumerWidget {
       groupId: groupId,
       generationIndex: generationIndex,
     )));
+    // Carton overlay (not affected by color adjustments)
+    final cartonBytes = ref.watch(cartonOverlayBytesProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -753,18 +755,31 @@ class _ResultWithSliders extends ConsumerWidget {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: baseBytes != null
-                    ? ColorFiltered(
-                        colorFilter: ColorFilter.matrix(buildColorMatrix(
-                          hue: adjustments.hue,
-                          saturation: adjustments.saturation,
-                          brightness: adjustments.brightness,
-                          contrast: adjustments.contrast,
-                        )),
-                        child: Image.memory(
-                          baseBytes,
-                          fit: BoxFit.contain,
-                          width: double.infinity,
-                        ),
+                    ? Stack(
+                        fit: StackFit.passthrough,
+                        children: [
+                          // Layer 1: Color-adjusted base image
+                          ColorFiltered(
+                            colorFilter: ColorFilter.matrix(buildColorMatrix(
+                              hue: adjustments.hue,
+                              saturation: adjustments.saturation,
+                              brightness: adjustments.brightness,
+                              contrast: adjustments.contrast,
+                            )),
+                            child: Image.memory(
+                              baseBytes,
+                              fit: BoxFit.contain,
+                              width: double.infinity,
+                            ),
+                          ),
+                          // Layer 2: Carton overlay (not affected by adjustments)
+                          if (cartonBytes != null)
+                            Image.memory(
+                              cartonBytes,
+                              fit: BoxFit.contain,
+                              width: double.infinity,
+                            ),
+                        ],
                       )
                     : Container(
                         height: 200,
