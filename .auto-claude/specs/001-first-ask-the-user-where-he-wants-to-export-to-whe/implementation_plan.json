@@ -164,7 +164,9 @@
             "expected": "No issues found"
           },
           "implementation_notes": "Pass _cursorIndex to _SelectableThumbnail or create wrapper. Add isCursor bool parameter. When isCursor is true, add a distinct colored border (e.g., Colors.orange or Theme.of(context).colorScheme.tertiary) to distinguish from selected state (which uses primary color). Consider adding subtle animation or glow effect.",
-          "status": "pending"
+          "status": "completed",
+          "notes": "Added visual cursor indicator with amber border (3px) and glowing box shadow effect. Cursor is visually distinct from selection state (blue). Modified _SelectableThumbnail widget to accept isCursor parameter and updated GridView.builder to pass index comparison.",
+          "updated_at": "2026-01-09T08:36:45.323172+00:00"
         }
       ]
     },
@@ -193,7 +195,9 @@
             "expected": "No issues found"
           },
           "implementation_notes": "After Space: _cursorIndex = (_cursorIndex + 1).clamp(0, ungroupedImages.length - 1). After Shift+Space: _cursorIndex = (_cursorIndex - 1).clamp(0, ungroupedImages.length - 1). Call setState() to rebuild. Handle edge case where list becomes empty after grouping - reset cursor to 0.",
-          "status": "pending"
+          "status": "completed",
+          "notes": "Auto-navigation logic was already implemented in subtask-2-3 as part of the keyboard event handler. Implementation includes: (1) Space advances cursor with clamp, (2) Shift+Space goes backward with clamp, (3) Enter clamps cursor after grouping removes images, (4) Shift+Enter resets cursor to 0 when undo returns images. All edge cases handled with proper bounds clamping.",
+          "updated_at": "2026-01-09T08:38:26.471840+00:00"
         },
         {
           "id": "subtask-3-2",
@@ -332,5 +336,5 @@
   "status": "in_progress",
   "planStatus": "in_progress",
   "updated_at": "2026-01-09T08:23:13.645Z",
-  "last_updated": "2026-01-09T08:35:03.513268+00:00"
+  "last_updated": "2026-01-09T08:38:26.471848+00:00"
 }

@@ -16,10 +16,10 @@
       "discovered_at": "2026-01-09T08:28:40.379582+00:00"
     },
     "lib/screens/grouping_screen.dart": {
-      "description": "GroupingScreen converted to ConsumerStatefulWidget with _cursorIndex (int) for keyboard navigation cursor position and _hasPromptedForDirectory (bool) for export dialog tracking. Includes cursor index clamping in build() method when ungrouped images list changes.",
-      "category": "ui-state",
-      "discovered_at": "2026-01-09T08:30:24.504453+00:00"
+      "description": "_SelectableThumbnail widget now accepts isCursor parameter for visual keyboard navigation indicator. Cursor shows amber border with glowing box shadow effect, distinct from blue selection border.",
+      "category": "ui-pattern",
+      "discovered_at": "2026-01-09T08:36:50.571277+00:00"
     }
   },
-  "last_updated": "2026-01-09T08:30:24.504461+00:00"
+  "last_updated": "2026-01-09T08:36:50.571293+00:00"
 }
