@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_picker/file_picker.dart';
 import '../providers/providers.dart';
 import '../models/models.dart';
 import '../services/image_cache_service.dart';
@@ -16,6 +18,40 @@ class GroupingScreen extends ConsumerStatefulWidget {
 class _GroupingScreenState extends ConsumerState<GroupingScreen> {
   int _cursorIndex = 0;
   bool _hasPromptedForDirectory = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Prompt for export directory after first build (desktop/mobile only)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _promptForExportDirectory();
+    });
+  }
+
+  Future<void> _promptForExportDirectory() async {
+    // Skip on web platform (web uses browser download)
+    if (kIsWeb) return;
+
+    // Only prompt once per screen session
+    if (_hasPromptedForDirectory) return;
+    _hasPromptedForDirectory = true;
+
+    // Check if directory is already set
+    final existingDirectory = ref.read(exportDirectoryProvider);
+    if (existingDirectory != null) return;
+
+    // Show directory picker dialog
+    final directory = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'Select Export Directory',
+    );
+
+    // Store the selected directory (may be null if user cancelled)
+    if (directory != null) {
+      ref.read(exportDirectoryProvider.notifier).state = directory;
+    }
+    // If user cancels, we allow continuing without directory -
+    // they will be prompted again at export time
+  }
 
   @override
   Widget build(BuildContext context) {
