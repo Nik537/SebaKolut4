@@ -17,7 +17,10 @@ class ExportController {
 
   ExportController(this._ref);
 
-  Future<void> exportAll() async {
+  /// Exports all groups with their selected generations.
+  /// [directory] - Pre-selected export directory (desktop/mobile).
+  ///               Pass null for web platform (uses browser download).
+  Future<void> exportAll({String? directory}) async {
     final groups = _ref.read(groupsProvider);
     final exportService = _ref.read(exportServiceProvider);
     final nanoBananaService = _ref.read(nanoBananaServiceProvider);
@@ -83,11 +86,13 @@ class ExportController {
       ));
     }
 
-    await exportService.exportDualBackground(images: exportData);
+    await exportService.exportDualBackground(images: exportData, directory: directory);
   }
 
   /// Export a single generation from a specific group
-  Future<void> exportSingleGeneration(String groupId, int generationIndex) async {
+  /// [directory] - Pre-selected export directory (desktop/mobile).
+  ///               Pass null for web platform (uses browser download).
+  Future<void> exportSingleGeneration(String groupId, int generationIndex, {String? directory}) async {
     final colorizedNotifier = _ref.read(colorizedImagesProvider.notifier);
     final colorizedImage = colorizedNotifier.getByGroupAndGeneration(groupId, generationIndex);
 
@@ -152,7 +157,7 @@ class ExportController {
       frontBytes: frontBytes,
     );
 
-    await exportService.exportDualBackground(images: [exportData]);
+    await exportService.exportDualBackground(images: [exportData], directory: directory);
   }
 }
 

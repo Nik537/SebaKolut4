@@ -38,6 +38,19 @@ class ExportService {
 
   final WebpEncoderService _webpEncoder = WebpEncoderService();
 
+  /// Prompts user to select export directory (desktop/mobile only).
+  /// Returns null if user cancels or on web platform.
+  Future<String?> getExportDirectory() async {
+    if (kIsWeb) {
+      // Web doesn't use directory selection - returns null to signal web mode
+      return null;
+    }
+
+    return await FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'Select Export Directory',
+    );
+  }
+
   /// Prepare image for export as WebP: resize to target size and compress to stay under 150KB
   Future<Uint8List> _prepareForExport(
     Uint8List imageBytes, {
@@ -65,8 +78,12 @@ class ExportService {
   /// File naming: 3d-filament-{GroupName}-alpha-azurefilm.webp, etc.
   /// Folder structure: {GroupName} {SKU}/
   /// WebP format with lossy (zoom/front) and lossless (transparent) compression
+  ///
+  /// [directory] - Pre-selected export directory (desktop/mobile).
+  ///               Pass null for web platform (uses browser download).
   Future<void> exportDualBackground({
     required List<ExportImageData> images,
+    String? directory,
   }) async {
     if (kIsWeb) {
       // Web: Download each file individually (no folder structure)
@@ -112,49 +129,43 @@ class ExportService {
           mimeType: MimeType.other,
         );
       }
-    } else {
-      // Desktop/Mobile: Select directory then save all in folders
-      final directory = await FilePicker.platform.getDirectoryPath(
-        dialogTitle: 'Select Export Directory',
-      );
+    } else if (directory != null) {
+      // Desktop/Mobile: Save all files to the pre-selected directory
+      for (final imageData in images) {
+        // Create folder: "{GroupName} {SKU}"
+        final folderName = '${imageData.groupName} ${imageData.sku}'.trim();
+        final folderPath = '$directory/$folderName';
+        await Directory(folderPath).create(recursive: true);
 
-      if (directory != null) {
-        for (final imageData in images) {
-          // Create folder: "{GroupName} {SKU}"
-          final folderName = '${imageData.groupName} ${imageData.sku}'.trim();
-          final folderPath = '$directory/$folderName';
-          await Directory(folderPath).create(recursive: true);
+        // Generate base filename: replace spaces with "-"
+        final baseName = imageData.groupName.replaceAll(' ', '-');
 
-          // Generate base filename: replace spaces with "-"
-          final baseName = imageData.groupName.replaceAll(' ', '-');
+        // Export transparent background version (lossless WebP with alpha, 2000x2000)
+        final transparentConverted = await _prepareForExport(
+          imageData.transparentBytes,
+          preserveTransparency: true,
+          targetSize: exportSizeLarge,
+        );
+        final transparentFile = File('$folderPath/3d-filament-$baseName-alpha-azurefilm.webp');
+        await transparentFile.writeAsBytes(transparentConverted);
 
-          // Export transparent background version (lossless WebP with alpha, 2000x2000)
-          final transparentConverted = await _prepareForExport(
-            imageData.transparentBytes,
-            preserveTransparency: true,
-            targetSize: exportSizeLarge,
-          );
-          final transparentFile = File('$folderPath/3d-filament-$baseName-alpha-azurefilm.webp');
-          await transparentFile.writeAsBytes(transparentConverted);
+        // Export zoom version (lossy WebP, 1080x1080)
+        final zoomConverted = await _prepareForExport(
+          imageData.zoomBytes,
+          preserveTransparency: false,
+          targetSize: exportSizeSmall,
+        );
+        final zoomFile = File('$folderPath/3d-filament-$baseName-zoom-azurefilm.webp');
+        await zoomFile.writeAsBytes(zoomConverted);
 
-          // Export zoom version (lossy WebP, 1080x1080)
-          final zoomConverted = await _prepareForExport(
-            imageData.zoomBytes,
-            preserveTransparency: false,
-            targetSize: exportSizeSmall,
-          );
-          final zoomFile = File('$folderPath/3d-filament-$baseName-zoom-azurefilm.webp');
-          await zoomFile.writeAsBytes(zoomConverted);
-
-          // Export front version (lossy WebP, 1080x1080)
-          final frontConverted = await _prepareForExport(
-            imageData.frontBytes,
-            preserveTransparency: false,
-            targetSize: exportSizeSmall,
-          );
-          final frontFile = File('$folderPath/3d-filament-$baseName-front-azurefilm.webp');
-          await frontFile.writeAsBytes(frontConverted);
-        }
+        // Export front version (lossy WebP, 1080x1080)
+        final frontConverted = await _prepareForExport(
+          imageData.frontBytes,
+          preserveTransparency: false,
+          targetSize: exportSizeSmall,
+        );
+        final frontFile = File('$folderPath/3d-filament-$baseName-front-azurefilm.webp');
+        await frontFile.writeAsBytes(frontConverted);
       }
     }
   }

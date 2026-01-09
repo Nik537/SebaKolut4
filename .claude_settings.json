@@ -1,0 +1,34 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true
+  },
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Read(./**)",
+      "Write(./**)",
+      "Edit(./**)",
+      "Glob(./**)",
+      "Grep(./**)",
+      "Read(/Users/niknoavak/Desktop/CodeProjects/SebaKolut4/**)",
+      "Write(/Users/niknoavak/Desktop/CodeProjects/SebaKolut4/**)",
+      "Edit(/Users/niknoavak/Desktop/CodeProjects/SebaKolut4/**)",
+      "Glob(/Users/niknoavak/Desktop/CodeProjects/SebaKolut4/**)",
+      "Grep(/Users/niknoavak/Desktop/CodeProjects/SebaKolut4/**)",
+      "Read(/Users/niknoavak/Desktop/CodeProjects/SebaKolut4/.auto-claude/specs/002-the-app-should-be-able-to-undo-and-redo-any-step-e/**)",
+      "Write(/Users/niknoavak/Desktop/CodeProjects/SebaKolut4/.auto-claude/specs/002-the-app-should-be-able-to-undo-and-redo-any-step-e/**)",
+      "Edit(/Users/niknoavak/Desktop/CodeProjects/SebaKolut4/.auto-claude/specs/002-the-app-should-be-able-to-undo-and-redo-any-step-e/**)",
+      "Bash(*)",
+      "WebFetch(*)",
+      "WebSearch(*)",
+      "mcp__context7__resolve-library-id(*)",
+      "mcp__context7__get-library-docs(*)",
+      "mcp__graphiti-memory__search_nodes(*)",
+      "mcp__graphiti-memory__search_facts(*)",
+      "mcp__graphiti-memory__add_episode(*)",
+      "mcp__graphiti-memory__get_episodes(*)",
+      "mcp__graphiti-memory__get_entity_edge(*)"
+    ]
+  }
+}
