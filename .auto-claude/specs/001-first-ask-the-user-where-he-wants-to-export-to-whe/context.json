@@ -1,0 +1,41 @@
+{
+  "task_description": "Add keyboard-driven photo selection workflow with export destination prompt to GroupingScreen",
+  "scoped_services": ["flutter-app"],
+  "files_to_modify": [
+    "lib/screens/grouping_screen.dart",
+    "lib/providers/groups_provider.dart",
+    "lib/providers/images_provider.dart",
+    "lib/providers/export_provider.dart"
+  ],
+  "files_to_reference": [
+    "lib/screens/import_screen.dart",
+    "lib/services/export_service.dart",
+    "lib/models/imported_image.dart",
+    "lib/models/image_group.dart"
+  ],
+  "patterns": {
+    "state_notifier_pattern": "StateNotifier<T> with Ref for accessing other providers via _ref.read()",
+    "widget_pattern": "ConsumerStatefulWidget with initState for local state like cursor position",
+    "selection_pattern": "toggleSelection(id) uses copyWith to update isSelected flag immutably",
+    "group_creation_pattern": "createGroupFromSelection() reads selectedImagesProvider, creates group, then marks images as grouped",
+    "directory_picker_pattern": "FilePicker.platform.getDirectoryPath() returns String? (null on web or cancel)"
+  },
+  "existing_implementations": {
+    "directory_picker": "lib/services/export_service.dart - getExportDirectory() method",
+    "toggle_selection": "lib/providers/images_provider.dart - toggleSelection(), markAsGrouped()",
+    "group_creation": "lib/providers/groups_provider.dart - createGroupFromSelection(), removeGroup()"
+  },
+  "keyboard_handling_pattern": {
+    "widget": "Focus widget with autofocus: true",
+    "event_handler": "onKeyEvent: (node, event) { ... return KeyEventResult.handled; }",
+    "modifier_keys": "HardwareKeyboard.instance.isShiftPressed for checking Shift key"
+  },
+  "edge_cases": [
+    "Cursor at end of list - clamp to valid range",
+    "Empty ungrouped images list - disable keyboard navigation",
+    "No groups to undo - do nothing gracefully",
+    "User cancels directory picker - allow continuing (re-prompt at export)",
+    "Web platform - skip directory picker (uses browser download)"
+  ],
+  "created_at": "2026-01-09T09:16:51.100474"
+}

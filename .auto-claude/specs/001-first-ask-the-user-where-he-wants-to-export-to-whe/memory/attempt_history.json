@@ -1,0 +1,117 @@
+{
+  "subtasks": {
+    "subtask-1-1": {
+      "attempts": [
+        {
+          "session": 1,
+          "timestamp": "2026-01-09T09:24:54.233320",
+          "approach": "Implemented: Add exportDirectoryProvider StateProvider to export_provider.dart to store selected export directory",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-1-2": {
+      "attempts": [
+        {
+          "session": 2,
+          "timestamp": "2026-01-09T09:27:21.382427",
+          "approach": "Implemented: Add undoLastGroup() method to GroupsNotifier with tracking of last created group",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-1-3": {
+      "attempts": [
+        {
+          "session": 3,
+          "timestamp": "2026-01-09T09:28:51.967710",
+          "approach": "Implemented: Add selectImageAt(), deselectImageAt(), and markAsUngrouped() methods to ImportedImagesNotifier",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-2-1": {
+      "attempts": [
+        {
+          "session": 4,
+          "timestamp": "2026-01-09T09:30:32.689220",
+          "approach": "Implemented: Convert GroupingScreen from ConsumerWidget to ConsumerStatefulWidget with cursor position state",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-2-2": {
+      "attempts": [
+        {
+          "session": 5,
+          "timestamp": "2026-01-09T09:32:33.136586",
+          "approach": "Implemented: Add export destination dialog that shows when entering GroupingScreen (desktop/mobile only)",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-2-3": {
+      "attempts": [
+        {
+          "session": 6,
+          "timestamp": "2026-01-09T09:35:14.635335",
+          "approach": "Implemented: Add Focus widget with keyboard event handler for Space, Shift+Space, Enter, Shift+Enter shortcuts",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-2-4": {
+      "attempts": [
+        {
+          "session": 7,
+          "timestamp": "2026-01-09T09:37:05.270364",
+          "approach": "Implemented: Add visual cursor indicator (highlight border) to currently focused photo in grid",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-3-1": {
+      "attempts": [
+        {
+          "session": 8,
+          "timestamp": "2026-01-09T09:38:49.092098",
+          "approach": "Implemented: Implement auto-navigation logic: advance cursor after select (Space), go back after deselect (Shift+",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-3-2": {
+      "attempts": [
+        {
+          "session": 9,
+          "timestamp": "2026-01-09T09:40:50.674136",
+          "approach": "Implemented: Handle edge cases: empty list, cursor bounds, no groups to undo, text field focus",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    }
+  },
+  "stuck_subtasks": [],
+  "metadata": {
+    "created_at": "2026-01-09T09:23:39.518914",
+    "last_updated": "2026-01-09T09:40:50.674166"
+  }
+}

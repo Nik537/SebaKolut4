@@ -1,0 +1,92 @@
+{
+  "complexity": "standard",
+  "workflow_type": "feature",
+  "confidence": 0.85,
+  "reasoning": "This is a UI feature adding keyboard-driven selection workflow with export destination dialog. Touches 4-6 files within the Flutter UI layer. Uses standard Flutter patterns (Focus, RawKeyboardListener) - no external integrations or infrastructure changes required.",
+
+  "analysis": {
+    "scope": {
+      "estimated_files": 5,
+      "estimated_services": 1,
+      "is_cross_cutting": false,
+      "notes": "Changes isolated to UI layer: grouping_screen.dart (keyboard handlers + dialog), groups_provider.dart (undo functionality), images_provider.dart (current index tracking, auto-advance), possibly new provider for focus/navigation state"
+    },
+    "integrations": {
+      "external_services": [],
+      "new_dependencies": [],
+      "research_needed": false,
+      "notes": "Uses Flutter's built-in Focus/RawKeyboardListener widgets - no external packages needed"
+    },
+    "infrastructure": {
+      "docker_changes": false,
+      "database_changes": false,
+      "config_changes": false,
+      "notes": "Pure UI feature - no infrastructure impact"
+    },
+    "knowledge": {
+      "patterns_exist": true,
+      "research_required": false,
+      "unfamiliar_tech": [],
+      "notes": "Flutter keyboard handling is well-documented. Existing codebase uses Riverpod state management which will be used for new state (current index, undo history)"
+    },
+    "risk": {
+      "level": "low",
+      "concerns": [
+        "Keyboard focus may conflict with text input fields (group name/SKU)",
+        "Must ensure Space/Enter don't trigger when editing text fields",
+        "Undo stack needs careful state management"
+      ],
+      "notes": "Standard UI concerns - mitigated by proper focus management and checking if text field is active before handling keyboard events"
+    }
+  },
+
+  "recommended_phases": [
+    "discovery",
+    "requirements",
+    "context",
+    "spec_writing",
+    "planning",
+    "validation"
+  ],
+
+  "flags": {
+    "needs_research": false,
+    "needs_self_critique": false,
+    "needs_infrastructure_setup": false
+  },
+
+  "validation_recommendations": {
+    "risk_level": "low",
+    "skip_validation": false,
+    "minimal_mode": true,
+    "test_types_required": ["unit"],
+    "security_scan_required": false,
+    "staging_deployment_required": false,
+    "reasoning": "UI feature with no security-sensitive code. Changes are localized to grouping screen and state providers. Unit tests for state logic (selection, auto-advance, undo) are sufficient. No external services or data handling involved."
+  },
+
+  "key_implementation_areas": {
+    "export_destination_dialog": {
+      "location": "grouping_screen.dart or new dialog widget",
+      "description": "Dialog to select export folder before grouping begins"
+    },
+    "keyboard_handler": {
+      "location": "grouping_screen.dart",
+      "description": "Focus widget + keyboard event handling for Space/Shift+Space/Enter/Shift+Enter"
+    },
+    "current_index_state": {
+      "location": "images_provider.dart or new provider",
+      "description": "Track current photo index for navigation and visual focus indicator"
+    },
+    "auto_navigation": {
+      "location": "images_provider.dart",
+      "description": "Methods for advancing forward/backward after selection changes"
+    },
+    "undo_functionality": {
+      "location": "groups_provider.dart",
+      "description": "Store last created group for undo, method to remove last group and restore selection"
+    }
+  },
+
+  "created_at": "2025-01-09T12:00:00Z"
+}

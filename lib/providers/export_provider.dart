@@ -7,6 +7,9 @@ import 'groups_provider.dart';
 
 final exportServiceProvider = Provider<ExportService>((ref) => ExportService());
 
+// Store selected export directory path
+final exportDirectoryProvider = StateProvider<String?>((ref) => null);
+
 // Export controller
 final exportControllerProvider = Provider<ExportController>((ref) {
   return ExportController(ref);
@@ -18,14 +21,14 @@ class ExportController {
   ExportController(this._ref);
 
   /// Exports all groups with their selected generations.
-  /// [directory] - Pre-selected export directory (desktop/mobile).
-  ///               Pass null for web platform (uses browser download).
-  Future<void> exportAll({String? directory}) async {
+  /// Uses the pre-selected directory from exportDirectoryProvider.
+  Future<void> exportAll() async {
     final groups = _ref.read(groupsProvider);
     final exportService = _ref.read(exportServiceProvider);
     final nanoBananaService = _ref.read(nanoBananaServiceProvider);
     final colorizedNotifier = _ref.read(colorizedImagesProvider.notifier);
     final imageCache = _ref.read(imageCacheServiceProvider);
+    final preSelectedDir = _ref.read(exportDirectoryProvider);
 
     // Prepare export data: for each group, export only the selected generation
     final exportData = <ExportImageData>[];
@@ -86,13 +89,15 @@ class ExportController {
       ));
     }
 
-    await exportService.exportDualBackground(images: exportData, directory: directory);
+    await exportService.exportDualBackground(
+      images: exportData,
+      directory: preSelectedDir,
+    );
   }
 
   /// Export a single generation from a specific group
-  /// [directory] - Pre-selected export directory (desktop/mobile).
-  ///               Pass null for web platform (uses browser download).
-  Future<void> exportSingleGeneration(String groupId, int generationIndex, {String? directory}) async {
+  /// Uses the pre-selected directory from exportDirectoryProvider.
+  Future<void> exportSingleGeneration(String groupId, int generationIndex) async {
     final colorizedNotifier = _ref.read(colorizedImagesProvider.notifier);
     final colorizedImage = colorizedNotifier.getByGroupAndGeneration(groupId, generationIndex);
 
@@ -113,6 +118,7 @@ class ExportController {
 
     final exportService = _ref.read(exportServiceProvider);
     final nanoBananaService = _ref.read(nanoBananaServiceProvider);
+    final preSelectedDir = _ref.read(exportDirectoryProvider);
 
     // Use generation-specific adjustment key
     final adjustmentKey = '$groupId:$generationIndex';
@@ -157,7 +163,10 @@ class ExportController {
       frontBytes: frontBytes,
     );
 
-    await exportService.exportDualBackground(images: [exportData], directory: directory);
+    await exportService.exportDualBackground(
+      images: [exportData],
+      directory: preSelectedDir,
+    );
   }
 }
 

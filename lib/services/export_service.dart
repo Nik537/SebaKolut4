@@ -81,6 +81,7 @@ class ExportService {
   ///
   /// [directory] - Pre-selected export directory (desktop/mobile).
   ///               Pass null for web platform (uses browser download).
+  ///               On desktop, if null, will prompt user to select.
   Future<void> exportDualBackground({
     required List<ExportImageData> images,
     String? directory,
@@ -129,43 +130,49 @@ class ExportService {
           mimeType: MimeType.other,
         );
       }
-    } else if (directory != null) {
-      // Desktop/Mobile: Save all files to the pre-selected directory
-      for (final imageData in images) {
-        // Create folder: "{GroupName} {SKU}"
-        final folderName = '${imageData.groupName} ${imageData.sku}'.trim();
-        final folderPath = '$directory/$folderName';
-        await Directory(folderPath).create(recursive: true);
+    } else {
+      // Desktop/Mobile: Use pre-selected directory or prompt for one
+      final exportDir = directory ?? await FilePicker.platform.getDirectoryPath(
+        dialogTitle: 'Select Export Directory',
+      );
 
-        // Generate base filename: replace spaces with "-"
-        final baseName = imageData.groupName.replaceAll(' ', '-');
+      if (exportDir != null) {
+        for (final imageData in images) {
+          // Create folder: "{GroupName} {SKU}"
+          final folderName = '${imageData.groupName} ${imageData.sku}'.trim();
+          final folderPath = '$exportDir/$folderName';
+          await Directory(folderPath).create(recursive: true);
 
-        // Export transparent background version (lossless WebP with alpha, 2000x2000)
-        final transparentConverted = await _prepareForExport(
-          imageData.transparentBytes,
-          preserveTransparency: true,
-          targetSize: exportSizeLarge,
-        );
-        final transparentFile = File('$folderPath/3d-filament-$baseName-alpha-azurefilm.webp');
-        await transparentFile.writeAsBytes(transparentConverted);
+          // Generate base filename: replace spaces with "-"
+          final baseName = imageData.groupName.replaceAll(' ', '-');
 
-        // Export zoom version (lossy WebP, 1080x1080)
-        final zoomConverted = await _prepareForExport(
-          imageData.zoomBytes,
-          preserveTransparency: false,
-          targetSize: exportSizeSmall,
-        );
-        final zoomFile = File('$folderPath/3d-filament-$baseName-zoom-azurefilm.webp');
-        await zoomFile.writeAsBytes(zoomConverted);
+          // Export transparent background version (lossless WebP with alpha, 2000x2000)
+          final transparentConverted = await _prepareForExport(
+            imageData.transparentBytes,
+            preserveTransparency: true,
+            targetSize: exportSizeLarge,
+          );
+          final transparentFile = File('$folderPath/3d-filament-$baseName-alpha-azurefilm.webp');
+          await transparentFile.writeAsBytes(transparentConverted);
 
-        // Export front version (lossy WebP, 1080x1080)
-        final frontConverted = await _prepareForExport(
-          imageData.frontBytes,
-          preserveTransparency: false,
-          targetSize: exportSizeSmall,
-        );
-        final frontFile = File('$folderPath/3d-filament-$baseName-front-azurefilm.webp');
-        await frontFile.writeAsBytes(frontConverted);
+          // Export zoom version (lossy WebP, 1080x1080)
+          final zoomConverted = await _prepareForExport(
+            imageData.zoomBytes,
+            preserveTransparency: false,
+            targetSize: exportSizeSmall,
+          );
+          final zoomFile = File('$folderPath/3d-filament-$baseName-zoom-azurefilm.webp');
+          await zoomFile.writeAsBytes(zoomConverted);
+
+          // Export front version (lossy WebP, 1080x1080)
+          final frontConverted = await _prepareForExport(
+            imageData.frontBytes,
+            preserveTransparency: false,
+            targetSize: exportSizeSmall,
+          );
+          final frontFile = File('$folderPath/3d-filament-$baseName-front-azurefilm.webp');
+          await frontFile.writeAsBytes(frontConverted);
+        }
       }
     }
   }

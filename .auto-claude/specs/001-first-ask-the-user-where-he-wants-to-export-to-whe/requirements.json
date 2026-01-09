@@ -1,0 +1,4 @@
+{
+  "task_description": "first ask the user where he wants to export to when creating groups I need to have keyboard control for selecting and diselecting photos that belong to a group. Fastest way for me would be to press a button like \"space\" to select a photo and \"shift+space\" to un-select should I make a mistake with the app automatically moving to the next photo after selecting a photo (space) and automatically moving the selection backwards after disselecting a photo (shift+space) . I would create a group quickly with pressing \"enter\" and undo with \"shift+enter\".",
+  "workflow_type": "feature"
+}

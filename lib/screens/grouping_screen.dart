@@ -1,20 +1,146 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_picker/file_picker.dart';
 import '../providers/providers.dart';
 import '../models/models.dart';
 import '../services/image_cache_service.dart';
 import '../widgets/log_viewer.dart';
 import 'processing_screen.dart';
 
-class GroupingScreen extends ConsumerWidget {
+class GroupingScreen extends ConsumerStatefulWidget {
   const GroupingScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<GroupingScreen> createState() => _GroupingScreenState();
+}
+
+class _GroupingScreenState extends ConsumerState<GroupingScreen> {
+  int _cursorIndex = 0;
+  bool _hasPromptedForDirectory = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Prompt for export directory after first build (desktop/mobile only)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _promptForExportDirectory();
+    });
+  }
+
+  Future<void> _promptForExportDirectory() async {
+    // Skip on web platform (web uses browser download)
+    if (kIsWeb) return;
+
+    // Only prompt once per screen session
+    if (_hasPromptedForDirectory) return;
+    _hasPromptedForDirectory = true;
+
+    // Check if directory is already set
+    final existingDirectory = ref.read(exportDirectoryProvider);
+    if (existingDirectory != null) return;
+
+    // Show directory picker dialog
+    final directory = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'Select Export Directory',
+    );
+
+    // Store the selected directory (may be null if user cancelled)
+    if (directory != null) {
+      ref.read(exportDirectoryProvider.notifier).state = directory;
+    }
+    // If user cancels, we allow continuing without directory -
+    // they will be prompted again at export time
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    // Only handle key down events
+    if (event is! KeyDownEvent) {
+      return KeyEventResult.ignored;
+    }
+
+    // Don't handle keyboard shortcuts when text field has focus
+    // This prevents Space/Enter from triggering selection while typing
+    final primaryFocus = FocusManager.instance.primaryFocus;
+    if (primaryFocus != null && primaryFocus.context != null) {
+      // Check if focus is on an editable text widget (TextField)
+      final editableText = primaryFocus.context!.findAncestorWidgetOfExactType<EditableText>();
+      if (editableText != null) {
+        return KeyEventResult.ignored;
+      }
+    }
+
+    final ungroupedImages = ref.read(ungroupedImagesProvider);
+
+    // Don't handle keyboard shortcuts when list is empty
+    if (ungroupedImages.isEmpty) {
+      return KeyEventResult.ignored;
+    }
+
+    final isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
+
+    if (event.logicalKey == LogicalKeyboardKey.space) {
+      if (isShiftPressed) {
+        // Shift+Space: deselect current photo and move cursor backward
+        // Use the image ID from ungroupedImages at cursor position
+        if (_cursorIndex >= 0 && _cursorIndex < ungroupedImages.length) {
+          ref.read(importedImagesProvider.notifier).deselectById(ungroupedImages[_cursorIndex].id);
+        }
+        setState(() {
+          _cursorIndex = (_cursorIndex - 1).clamp(0, ungroupedImages.length - 1);
+        });
+      } else {
+        // Space: select current photo and advance cursor
+        // Use the image ID from ungroupedImages at cursor position
+        if (_cursorIndex >= 0 && _cursorIndex < ungroupedImages.length) {
+          ref.read(importedImagesProvider.notifier).selectById(ungroupedImages[_cursorIndex].id);
+        }
+        setState(() {
+          _cursorIndex = (_cursorIndex + 1).clamp(0, ungroupedImages.length - 1);
+        });
+      }
+      return KeyEventResult.handled;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.enter) {
+      if (isShiftPressed) {
+        // Shift+Enter: undo the last group creation
+        ref.read(groupsProvider.notifier).undoLastGroup();
+        // Reset cursor to 0 after undo (images return to list)
+        setState(() {
+          _cursorIndex = 0;
+        });
+      } else {
+        // Enter: create group from selected photos
+        ref.read(groupsProvider.notifier).createGroupFromSelection();
+        // Clamp cursor after grouping (list may have shrunk)
+        final remainingImages = ref.read(ungroupedImagesProvider);
+        setState(() {
+          if (remainingImages.isEmpty) {
+            _cursorIndex = 0;
+          } else {
+            _cursorIndex = _cursorIndex.clamp(0, remainingImages.length - 1);
+          }
+        });
+      }
+      return KeyEventResult.handled;
+    }
+
+    return KeyEventResult.ignored;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final ungroupedImages = ref.watch(ungroupedImagesProvider);
     final selectedImages = ref.watch(selectedImagesProvider);
     final groups = ref.watch(groupsProvider);
     final allImages = ref.watch(importedImagesProvider);
+
+    // Clamp cursor index when list changes
+    if (ungroupedImages.isNotEmpty && _cursorIndex >= ungroupedImages.length) {
+      _cursorIndex = ungroupedImages.length - 1;
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -24,11 +150,14 @@ class GroupingScreen extends ConsumerWidget {
           LogViewerButton(),
         ],
       ),
-      body: Row(
-        children: [
-          // Main content - image selection
-          Expanded(
-            flex: 3,
+      body: Focus(
+        autofocus: true,
+        onKeyEvent: _handleKeyEvent,
+        child: Row(
+          children: [
+            // Main content - image selection
+            Expanded(
+              flex: 3,
             child: Column(
               children: [
                 // Selection info bar
@@ -116,7 +245,10 @@ class GroupingScreen extends ConsumerWidget {
                                   itemCount: ungroupedImages.length,
                                   itemBuilder: (context, index) {
                                     final image = ungroupedImages[index];
-                                    return _SelectableThumbnail(image: image);
+                                    return _SelectableThumbnail(
+                                      image: image,
+                                      isCursor: index == _cursorIndex,
+                                    );
                                   },
                                 ),
                               ),
@@ -204,7 +336,8 @@ class GroupingScreen extends ConsumerWidget {
               ],
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -212,8 +345,12 @@ class GroupingScreen extends ConsumerWidget {
 
 class _SelectableThumbnail extends ConsumerWidget {
   final ImportedImage image;
+  final bool isCursor;
 
-  const _SelectableThumbnail({required this.image});
+  const _SelectableThumbnail({
+    required this.image,
+    this.isCursor = false,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -228,11 +365,22 @@ class _SelectableThumbnail extends ConsumerWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: image.isSelected
-                ? Theme.of(context).colorScheme.primary
-                : Colors.grey.shade300,
-            width: image.isSelected ? 3 : 1,
+            color: isCursor
+                ? Colors.amber.shade600
+                : image.isSelected
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.grey.shade300,
+            width: isCursor || image.isSelected ? 3 : 1,
           ),
+          boxShadow: isCursor
+              ? [
+                  BoxShadow(
+                    color: Colors.amber.shade300.withOpacity(0.6),
+                    blurRadius: 8,
+                    spreadRadius: 2,
+                  ),
+                ]
+              : null,
         ),
         child: Stack(
           children: [
