@@ -228,7 +228,10 @@ class _GroupingScreenState extends ConsumerState<GroupingScreen> {
                                   itemCount: ungroupedImages.length,
                                   itemBuilder: (context, index) {
                                     final image = ungroupedImages[index];
-                                    return _SelectableThumbnail(image: image);
+                                    return _SelectableThumbnail(
+                                      image: image,
+                                      isCursor: index == _cursorIndex,
+                                    );
                                   },
                                 ),
                               ),
@@ -325,8 +328,12 @@ class _GroupingScreenState extends ConsumerState<GroupingScreen> {
 
 class _SelectableThumbnail extends ConsumerWidget {
   final ImportedImage image;
+  final bool isCursor;
 
-  const _SelectableThumbnail({required this.image});
+  const _SelectableThumbnail({
+    required this.image,
+    this.isCursor = false,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -341,11 +348,22 @@ class _SelectableThumbnail extends ConsumerWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: image.isSelected
-                ? Theme.of(context).colorScheme.primary
-                : Colors.grey.shade300,
-            width: image.isSelected ? 3 : 1,
+            color: isCursor
+                ? Colors.amber.shade600
+                : image.isSelected
+                    ? Theme.of(context).colorScheme.primary
+                    : Colors.grey.shade300,
+            width: isCursor || image.isSelected ? 3 : 1,
           ),
+          boxShadow: isCursor
+              ? [
+                  BoxShadow(
+                    color: Colors.amber.shade300.withOpacity(0.6),
+                    blurRadius: 8,
+                    spreadRadius: 2,
+                  ),
+                ]
+              : null,
         ),
         child: Stack(
           children: [
