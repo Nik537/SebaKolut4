@@ -698,37 +698,37 @@ final imageAdjustmentsProvider =
 class ImageAdjustmentsNotifier extends StateNotifier<Map<String, ImageAdjustments>> {
   ImageAdjustmentsNotifier() : super({});
 
-  void setAdjustments(String groupId, ImageAdjustments adjustments) {
-    state = {...state, groupId: adjustments};
+  void setAdjustments(String key, ImageAdjustments adjustments) {
+    state = {...state}..[key] = adjustments;
   }
 
-  void updateHue(String groupId, double value) {
-    final current = state[groupId] ?? const ImageAdjustments();
-    state = {...state, groupId: current.copyWith(hue: value)};
+  void updateHue(String key, double value) {
+    final current = state[key] ?? const ImageAdjustments();
+    state = {...state}..[key] = current.copyWith(hue: value);
   }
 
-  void updateSaturation(String groupId, double value) {
-    final current = state[groupId] ?? const ImageAdjustments();
-    state = {...state, groupId: current.copyWith(saturation: value)};
+  void updateSaturation(String key, double value) {
+    final current = state[key] ?? const ImageAdjustments();
+    state = {...state}..[key] = current.copyWith(saturation: value);
   }
 
-  void updateBrightness(String groupId, double value) {
-    final current = state[groupId] ?? const ImageAdjustments();
-    state = {...state, groupId: current.copyWith(brightness: value)};
+  void updateBrightness(String key, double value) {
+    final current = state[key] ?? const ImageAdjustments();
+    state = {...state}..[key] = current.copyWith(brightness: value);
   }
 
-  void updateContrast(String groupId, double value) {
-    final current = state[groupId] ?? const ImageAdjustments();
-    state = {...state, groupId: current.copyWith(contrast: value)};
+  void updateContrast(String key, double value) {
+    final current = state[key] ?? const ImageAdjustments();
+    state = {...state}..[key] = current.copyWith(contrast: value);
   }
 
-  void updateSharpness(String groupId, double value) {
-    final current = state[groupId] ?? const ImageAdjustments();
-    state = {...state, groupId: current.copyWith(sharpness: value)};
+  void updateSharpness(String key, double value) {
+    final current = state[key] ?? const ImageAdjustments();
+    state = {...state}..[key] = current.copyWith(sharpness: value);
   }
 
-  void reset(String groupId) {
-    state = {...state, groupId: const ImageAdjustments()};
+  void reset(String key) {
+    state = {...state}..[key] = const ImageAdjustments();
   }
 }
 

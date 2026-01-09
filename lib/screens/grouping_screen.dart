@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/providers.dart';
 import '../models/models.dart';
@@ -7,15 +8,136 @@ import '../services/filament_type_service.dart';
 import '../widgets/log_viewer.dart';
 import 'processing_screen.dart';
 
-class GroupingScreen extends ConsumerWidget {
+class GroupingScreen extends ConsumerStatefulWidget {
   const GroupingScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<GroupingScreen> createState() => _GroupingScreenState();
+}
+
+class _GroupingScreenState extends ConsumerState<GroupingScreen> {
+  final FocusNode _gridFocusNode = FocusNode();
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Auto-focus the grid on screen load
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _gridFocusNode.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _gridFocusNode.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  KeyEventResult _handleKeyDown(KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+
+    final ungroupedImages = ref.read(ungroupedImagesProvider);
+    if (ungroupedImages.isEmpty) return KeyEventResult.ignored;
+
+    final focusedId = ref.read(focusedImageIdProvider);
+    final isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
+
+    // Initialize focus if null
+    if (focusedId == null) {
+      ref.read(focusedImageIdProvider.notifier).setFocus(ungroupedImages.first.id);
+      return KeyEventResult.handled;
+    }
+
+    final currentIndex = ungroupedImages.indexWhere((img) => img.id == focusedId);
+    if (currentIndex < 0) {
+      ref.read(focusedImageIdProvider.notifier).setFocus(ungroupedImages.first.id);
+      return KeyEventResult.handled;
+    }
+
+    // Space = select + advance
+    if (event.logicalKey == LogicalKeyboardKey.space && !isShiftPressed) {
+      final image = ungroupedImages[currentIndex];
+      if (!image.isSelected) {
+        ref.read(importedImagesProvider.notifier).toggleSelection(image.id);
+      }
+      // Advance to next
+      if (currentIndex < ungroupedImages.length - 1) {
+        ref.read(focusedImageIdProvider.notifier).setFocus(ungroupedImages[currentIndex + 1].id);
+        _scrollToIndex(currentIndex + 1);
+      }
+      return KeyEventResult.handled;
+    }
+
+    // Shift+Space = deselect + go back
+    if (event.logicalKey == LogicalKeyboardKey.space && isShiftPressed) {
+      final image = ungroupedImages[currentIndex];
+      if (image.isSelected) {
+        ref.read(importedImagesProvider.notifier).toggleSelection(image.id);
+      }
+      // Move back
+      if (currentIndex > 0) {
+        ref.read(focusedImageIdProvider.notifier).setFocus(ungroupedImages[currentIndex - 1].id);
+        _scrollToIndex(currentIndex - 1);
+      }
+      return KeyEventResult.handled;
+    }
+
+    // Enter = create group
+    if (event.logicalKey == LogicalKeyboardKey.enter && !isShiftPressed) {
+      final selected = ref.read(selectedImagesProvider);
+      if (selected.isNotEmpty) {
+        ref.read(groupsProvider.notifier).createGroupFromSelection();
+        // Reset focus to first remaining image
+        final remaining = ref.read(ungroupedImagesProvider);
+        if (remaining.isNotEmpty) {
+          ref.read(focusedImageIdProvider.notifier).setFocus(remaining.first.id);
+          _scrollToIndex(0);
+        } else {
+          ref.read(focusedImageIdProvider.notifier).clearFocus();
+        }
+      }
+      return KeyEventResult.handled;
+    }
+
+    // Shift+Enter = undo last group
+    if (event.logicalKey == LogicalKeyboardKey.enter && isShiftPressed) {
+      ref.read(groupsProvider.notifier).undoLastGroup();
+      return KeyEventResult.handled;
+    }
+
+    return KeyEventResult.ignored;
+  }
+
+  void _scrollToIndex(int index) {
+    // Calculate scroll position for 4-column grid
+    const crossAxisCount = 4;
+    const itemHeight = 120.0; // Approximate item height with spacing
+    final rowIndex = index ~/ crossAxisCount;
+    final targetScroll = rowIndex * itemHeight;
+
+    // Only scroll if needed
+    if (!_scrollController.hasClients) return;
+    final viewportHeight = _scrollController.position.viewportDimension;
+    final currentScroll = _scrollController.offset;
+
+    if (targetScroll < currentScroll || targetScroll > currentScroll + viewportHeight - itemHeight) {
+      _scrollController.animateTo(
+        targetScroll.clamp(0.0, _scrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final ungroupedImages = ref.watch(ungroupedImagesProvider);
     final selectedImages = ref.watch(selectedImagesProvider);
     final groups = ref.watch(groupsProvider);
     final allImages = ref.watch(importedImagesProvider);
+    final focusedId = ref.watch(focusedImageIdProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -107,18 +229,30 @@ class GroupingScreen extends ConsumerWidget {
                               ),
                               const SizedBox(height: 12),
                               Expanded(
-                                child: GridView.builder(
-                                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 4,
-                                    crossAxisSpacing: 12,
-                                    mainAxisSpacing: 12,
-                                    childAspectRatio: 1,
+                                child: Focus(
+                                  focusNode: _gridFocusNode,
+                                  onKeyEvent: (node, event) => _handleKeyDown(event),
+                                  child: GridView.builder(
+                                    controller: _scrollController,
+                                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: 4,
+                                      crossAxisSpacing: 12,
+                                      mainAxisSpacing: 12,
+                                      childAspectRatio: 1,
+                                    ),
+                                    itemCount: ungroupedImages.length,
+                                    itemBuilder: (context, index) {
+                                      final image = ungroupedImages[index];
+                                      return _SelectableThumbnail(
+                                        image: image,
+                                        isFocused: focusedId == image.id,
+                                        onTap: () {
+                                          ref.read(importedImagesProvider.notifier).toggleSelection(image.id);
+                                          ref.read(focusedImageIdProvider.notifier).setFocus(image.id);
+                                        },
+                                      );
+                                    },
                                   ),
-                                  itemCount: ungroupedImages.length,
-                                  itemBuilder: (context, index) {
-                                    final image = ungroupedImages[index];
-                                    return _SelectableThumbnail(image: image);
-                                  },
                                 ),
                               ),
                             ],
@@ -213,8 +347,28 @@ class GroupingScreen extends ConsumerWidget {
 
 class _SelectableThumbnail extends ConsumerWidget {
   final ImportedImage image;
+  final bool isFocused;
+  final VoidCallback? onTap;
 
-  const _SelectableThumbnail({required this.image});
+  const _SelectableThumbnail({
+    required this.image,
+    this.isFocused = false,
+    this.onTap,
+  });
+
+  Border _getBorder(BuildContext context) {
+    if (isFocused) {
+      // Orange focus ring - distinct from blue selection
+      return Border.all(color: Colors.orange, width: 4);
+    } else if (image.isSelected) {
+      return Border.all(
+        color: Theme.of(context).colorScheme.primary,
+        width: 3,
+      );
+    } else {
+      return Border.all(color: Colors.grey.shade300, width: 1);
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -222,18 +376,22 @@ class _SelectableThumbnail extends ConsumerWidget {
     final thumbnailBytes = imageCache.getThumbnail(image.id);
 
     return GestureDetector(
-      onTap: () {
+      onTap: onTap ?? () {
         ref.read(importedImagesProvider.notifier).toggleSelection(image.id);
       },
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: image.isSelected
-                ? Theme.of(context).colorScheme.primary
-                : Colors.grey.shade300,
-            width: image.isSelected ? 3 : 1,
-          ),
+          border: _getBorder(context),
+          boxShadow: isFocused
+              ? [
+                  BoxShadow(
+                    color: Colors.orange.withValues(alpha: 0.4),
+                    blurRadius: 8,
+                    spreadRadius: 2,
+                  ),
+                ]
+              : null,
         ),
         child: Stack(
           children: [

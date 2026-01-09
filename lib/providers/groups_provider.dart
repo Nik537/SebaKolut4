@@ -37,6 +37,19 @@ class GroupsNotifier extends StateNotifier<List<ImageGroup>> {
     state = state.where((g) => g.id != groupId).toList();
   }
 
+  void undoLastGroup() {
+    if (state.isEmpty) return;
+
+    final lastGroup = state.last;
+    final imageIds = lastGroup.imageIds;
+
+    // Remove the last group
+    state = state.sublist(0, state.length - 1);
+
+    // Return images to ungrouped state
+    _ref.read(importedImagesProvider.notifier).unmarkAsGrouped(imageIds);
+  }
+
   void renameGroup(String groupId, String newName) {
     state = state.map((g) {
       if (g.id == groupId) {

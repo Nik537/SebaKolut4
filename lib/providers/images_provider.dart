@@ -59,6 +59,15 @@ class ImportedImagesNotifier extends StateNotifier<List<ImportedImage>> {
     }).toList();
   }
 
+  void unmarkAsGrouped(List<String> imageIds) {
+    state = state.map((img) {
+      if (imageIds.contains(img.id)) {
+        return img.copyWith(isGrouped: false);
+      }
+      return img;
+    }).toList();
+  }
+
   void reset() {
     // Clear all cached imported images
     _imageCache.clearImportedImages();
@@ -83,3 +92,16 @@ final ungroupedImagesProvider = Provider<List<ImportedImage>>((ref) {
   final images = ref.watch(importedImagesProvider);
   return images.where((img) => !img.isGrouped).toList();
 });
+
+// Provider to track focused image by ID (stable across list changes)
+final focusedImageIdProvider =
+    StateNotifierProvider<FocusedImageIdNotifier, String?>((ref) {
+  return FocusedImageIdNotifier();
+});
+
+class FocusedImageIdNotifier extends StateNotifier<String?> {
+  FocusedImageIdNotifier() : super(null);
+
+  void setFocus(String? id) => state = id;
+  void clearFocus() => state = null;
+}
