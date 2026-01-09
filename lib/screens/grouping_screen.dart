@@ -6,15 +6,28 @@ import '../services/image_cache_service.dart';
 import '../widgets/log_viewer.dart';
 import 'processing_screen.dart';
 
-class GroupingScreen extends ConsumerWidget {
+class GroupingScreen extends ConsumerStatefulWidget {
   const GroupingScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<GroupingScreen> createState() => _GroupingScreenState();
+}
+
+class _GroupingScreenState extends ConsumerState<GroupingScreen> {
+  int _cursorIndex = 0;
+  bool _hasPromptedForDirectory = false;
+
+  @override
+  Widget build(BuildContext context) {
     final ungroupedImages = ref.watch(ungroupedImagesProvider);
     final selectedImages = ref.watch(selectedImagesProvider);
     final groups = ref.watch(groupsProvider);
     final allImages = ref.watch(importedImagesProvider);
+
+    // Clamp cursor index when list changes
+    if (ungroupedImages.isNotEmpty && _cursorIndex >= ungroupedImages.length) {
+      _cursorIndex = ungroupedImages.length - 1;
+    }
 
     return Scaffold(
       appBar: AppBar(
