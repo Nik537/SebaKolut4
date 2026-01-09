@@ -67,6 +67,7 @@ class ExportService {
   /// WebP format with lossy (zoom/front) and lossless (transparent) compression
   Future<void> exportDualBackground({
     required List<ExportImageData> images,
+    String? preSelectedDirectory,  // Pre-selected directory from GroupingScreen
   }) async {
     if (kIsWeb) {
       // Web: Download each file individually (no folder structure)
@@ -113,8 +114,8 @@ class ExportService {
         );
       }
     } else {
-      // Desktop/Mobile: Select directory then save all in folders
-      final directory = await FilePicker.platform.getDirectoryPath(
+      // Desktop/Mobile: Use pre-selected directory or prompt for one
+      final directory = preSelectedDirectory ?? await FilePicker.platform.getDirectoryPath(
         dialogTitle: 'Select Export Directory',
       );
 

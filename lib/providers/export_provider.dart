@@ -26,6 +26,7 @@ class ExportController {
     final nanoBananaService = _ref.read(nanoBananaServiceProvider);
     final colorizedNotifier = _ref.read(colorizedImagesProvider.notifier);
     final imageCache = _ref.read(imageCacheServiceProvider);
+    final preSelectedDir = _ref.read(exportDirectoryProvider);  // Get pre-selected directory
 
     // Prepare export data: for each group, export only the selected generation
     final exportData = <ExportImageData>[];
@@ -86,7 +87,10 @@ class ExportController {
       ));
     }
 
-    await exportService.exportDualBackground(images: exportData);
+    await exportService.exportDualBackground(
+      images: exportData,
+      preSelectedDirectory: preSelectedDir,  // Pass pre-selected directory
+    );
   }
 
   /// Export a single generation from a specific group
@@ -111,6 +115,7 @@ class ExportController {
 
     final exportService = _ref.read(exportServiceProvider);
     final nanoBananaService = _ref.read(nanoBananaServiceProvider);
+    final preSelectedDir = _ref.read(exportDirectoryProvider);  // Get pre-selected directory
 
     // Use generation-specific adjustment key
     final adjustmentKey = '$groupId:$generationIndex';
@@ -155,7 +160,10 @@ class ExportController {
       frontBytes: frontBytes,
     );
 
-    await exportService.exportDualBackground(images: [exportData]);
+    await exportService.exportDualBackground(
+      images: [exportData],
+      preSelectedDirectory: preSelectedDir,  // Pass pre-selected directory
+    );
   }
 }
 

@@ -83,13 +83,19 @@ class _GroupingScreenState extends ConsumerState<GroupingScreen> {
     if (event.logicalKey == LogicalKeyboardKey.space) {
       if (isShiftPressed) {
         // Shift+Space: deselect current photo and move cursor backward
-        ref.read(importedImagesProvider.notifier).deselectImageAt(_cursorIndex);
+        // Use the image ID from ungroupedImages at cursor position
+        if (_cursorIndex >= 0 && _cursorIndex < ungroupedImages.length) {
+          ref.read(importedImagesProvider.notifier).deselectById(ungroupedImages[_cursorIndex].id);
+        }
         setState(() {
           _cursorIndex = (_cursorIndex - 1).clamp(0, ungroupedImages.length - 1);
         });
       } else {
         // Space: select current photo and advance cursor
-        ref.read(importedImagesProvider.notifier).selectImageAt(_cursorIndex);
+        // Use the image ID from ungroupedImages at cursor position
+        if (_cursorIndex >= 0 && _cursorIndex < ungroupedImages.length) {
+          ref.read(importedImagesProvider.notifier).selectById(ungroupedImages[_cursorIndex].id);
+        }
         setState(() {
           _cursorIndex = (_cursorIndex + 1).clamp(0, ungroupedImages.length - 1);
         });

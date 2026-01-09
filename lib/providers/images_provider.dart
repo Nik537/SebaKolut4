@@ -90,6 +90,26 @@ class ImportedImagesNotifier extends StateNotifier<List<ImportedImage>> {
     }).toList();
   }
 
+  /// Select a specific image by ID (used for keyboard navigation)
+  void selectById(String id) {
+    state = state.map((img) {
+      if (img.id == id && !img.isGrouped) {
+        return img.copyWith(isSelected: true);
+      }
+      return img;
+    }).toList();
+  }
+
+  /// Deselect a specific image by ID (used for keyboard navigation)
+  void deselectById(String id) {
+    state = state.map((img) {
+      if (img.id == id) {
+        return img.copyWith(isSelected: false);
+      }
+      return img;
+    }).toList();
+  }
+
   void reset() {
     // Clear all cached imported images
     _imageCache.clearImportedImages();
