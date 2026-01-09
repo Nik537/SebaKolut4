@@ -59,6 +59,37 @@ class ImportedImagesNotifier extends StateNotifier<List<ImportedImage>> {
     }).toList();
   }
 
+  void selectImageAt(int index) {
+    if (index < 0 || index >= state.length) return;
+    state = [
+      for (int i = 0; i < state.length; i++)
+        if (i == index && !state[i].isGrouped)
+          state[i].copyWith(isSelected: true)
+        else
+          state[i],
+    ];
+  }
+
+  void deselectImageAt(int index) {
+    if (index < 0 || index >= state.length) return;
+    state = [
+      for (int i = 0; i < state.length; i++)
+        if (i == index)
+          state[i].copyWith(isSelected: false)
+        else
+          state[i],
+    ];
+  }
+
+  void markAsUngrouped(List<String> imageIds) {
+    state = state.map((img) {
+      if (imageIds.contains(img.id)) {
+        return img.copyWith(isGrouped: false);
+      }
+      return img;
+    }).toList();
+  }
+
   void reset() {
     // Clear all cached imported images
     _imageCache.clearImportedImages();
