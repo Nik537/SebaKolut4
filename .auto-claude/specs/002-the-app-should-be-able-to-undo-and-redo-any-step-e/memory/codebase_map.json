@@ -19,7 +19,17 @@
       "description": "UndoRedoButtons is a reusable ConsumerWidget for AppBar actions. It watches canUndoProvider and canRedoProvider for button enabled state. Import from lib/widgets/undo_redo_buttons.dart and use as: const UndoRedoButtons()",
       "category": "ui_component",
       "discovered_at": "2026-01-09T08:54:55.453635+00:00"
+    },
+    "lib/main.dart": {
+      "description": "Keyboard shortcuts for undo/redo implemented via Shortcuts and Actions widgets wrapping MaterialApp. Uses UndoIntent/RedoIntent classes with SingleActivator for Ctrl+Z, Ctrl+Shift+Z (Windows/Linux) and Command+Z, Command+Shift+Z (macOS). FilamentColorizerApp is a ConsumerWidget to access undoRedoProvider.",
+      "category": "ui_pattern",
+      "discovered_at": "2026-01-09T09:02:53.706947+00:00"
+    },
+    "test/providers/undo_redo_provider_test.dart": {
+      "description": "Unit tests for UndoRedoNotifier covering: initial state, capture/undo/redo operations, history limit enforcement (maxHistorySize=50), clearHistory, state restoration for all providers (images, groups, colorized images, adjustments, selected generations), and derived providers (canUndoProvider, canRedoProvider). Uses ProviderContainer with ImageCacheService override for testing.",
+      "category": "testing",
+      "discovered_at": "2026-01-09T09:05:19.003232+00:00"
     }
   },
-  "last_updated": "2026-01-09T08:54:55.453645+00:00"
+  "last_updated": "2026-01-09T09:05:19.003240+00:00"
 }
