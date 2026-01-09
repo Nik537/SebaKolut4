@@ -1,0 +1,323 @@
+{
+  "feature": "Keyboard-Driven Photo Selection with Export Destination Prompt",
+  "workflow_type": "feature",
+  "workflow_rationale": "This task adds new functionality (keyboard navigation and early export destination selection) to an existing screen without changing the underlying architecture. Single-service Flutter app with 4 files to modify.",
+  "phases": [
+    {
+      "id": "phase-1-providers",
+      "name": "Provider Extensions",
+      "type": "implementation",
+      "description": "Add necessary state and methods to providers: export directory state, undo group functionality, and selection helper methods",
+      "depends_on": [],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-1-1",
+          "description": "Add exportDirectoryProvider StateProvider to export_provider.dart to store selected export directory path",
+          "service": "flutter-app",
+          "files_to_modify": [
+            "lib/providers/export_provider.dart"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "lib/providers/images_provider.dart"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "cd /Users/niknoavak/Desktop/CodeProjects/SebaKolut4 && flutter analyze lib/providers/export_provider.dart",
+            "expected": "No issues found"
+          },
+          "implementation_notes": "Add: final exportDirectoryProvider = StateProvider<String?>((ref) => null); This simple StateProvider stores the selected directory path (null for web or if user cancels).",
+          "status": "pending"
+        },
+        {
+          "id": "subtask-1-2",
+          "description": "Add undoLastGroup() method to GroupsNotifier with tracking of last created group",
+          "service": "flutter-app",
+          "files_to_modify": [
+            "lib/providers/groups_provider.dart"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "lib/providers/groups_provider.dart"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "cd /Users/niknoavak/Desktop/CodeProjects/SebaKolut4 && flutter analyze lib/providers/groups_provider.dart",
+            "expected": "No issues found"
+          },
+          "implementation_notes": "Add _lastCreatedGroupId field to track last group. In createGroupFromSelection(), store group.id before adding to state. Add undoLastGroup() method that: 1) finds group by _lastCreatedGroupId, 2) gets its imageIds, 3) calls markAsUngrouped on those IDs via _ref, 4) removes group from state, 5) clears _lastCreatedGroupId.",
+          "status": "pending"
+        },
+        {
+          "id": "subtask-1-3",
+          "description": "Add selectImageAt(), deselectImageAt(), and markAsUngrouped() methods to ImportedImagesNotifier",
+          "service": "flutter-app",
+          "files_to_modify": [
+            "lib/providers/images_provider.dart"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "lib/providers/images_provider.dart"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "cd /Users/niknoavak/Desktop/CodeProjects/SebaKolut4 && flutter analyze lib/providers/images_provider.dart",
+            "expected": "No issues found"
+          },
+          "implementation_notes": "Add three methods: 1) selectImageAt(int index, List<ImportedImage> ungrouped) - gets image at index from ungrouped list, sets isSelected=true using copyWith; 2) deselectImageAt(int index, List<ImportedImage> ungrouped) - same but isSelected=false; 3) markAsUngrouped(List<String> ids) - for each id, set isGrouped=false. All use immutable state updates with map().",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-2-ui",
+      "name": "UI Implementation",
+      "type": "implementation",
+      "description": "Convert GroupingScreen to ConsumerStatefulWidget, add export destination dialog on entry, keyboard event handling, and visual cursor indicator",
+      "depends_on": [
+        "phase-1-providers"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-2-1",
+          "description": "Convert GroupingScreen from ConsumerWidget to ConsumerStatefulWidget with cursor position state",
+          "service": "flutter-app",
+          "files_to_modify": [
+            "lib/screens/grouping_screen.dart"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "lib/screens/import_screen.dart"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "cd /Users/niknoavak/Desktop/CodeProjects/SebaKolut4 && flutter analyze lib/screens/grouping_screen.dart",
+            "expected": "No issues found"
+          },
+          "implementation_notes": "Change class declaration to: class GroupingScreen extends ConsumerStatefulWidget. Create _GroupingScreenState extends ConsumerState<GroupingScreen>. Add int _cursorIndex = 0 as local state. Move build() logic to state class. Add _hasPromptedForDirectory bool to track if dialog shown.",
+          "status": "pending"
+        },
+        {
+          "id": "subtask-2-2",
+          "description": "Add export destination dialog that shows when entering GroupingScreen (desktop/mobile only)",
+          "service": "flutter-app",
+          "files_to_modify": [
+            "lib/screens/grouping_screen.dart"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "lib/services/export_service.dart"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "cd /Users/niknoavak/Desktop/CodeProjects/SebaKolut4 && flutter analyze lib/screens/grouping_screen.dart",
+            "expected": "No issues found"
+          },
+          "implementation_notes": "In initState(), add WidgetsBinding.instance.addPostFrameCallback() to show dialog after build. Check if kIsWeb - skip on web. Call ExportService.getExportDirectory() and store result in exportDirectoryProvider. Handle null result (user cancelled) gracefully - allow continuing without directory.",
+          "status": "pending"
+        },
+        {
+          "id": "subtask-2-3",
+          "description": "Add Focus widget with keyboard event handler for Space, Shift+Space, Enter, Shift+Enter shortcuts",
+          "service": "flutter-app",
+          "files_to_modify": [
+            "lib/screens/grouping_screen.dart"
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "cd /Users/niknoavak/Desktop/CodeProjects/SebaKolut4 && flutter analyze lib/screens/grouping_screen.dart",
+            "expected": "No issues found"
+          },
+          "implementation_notes": "Wrap Scaffold body with Focus(autofocus: true, onKeyEvent: _handleKeyEvent, child: ...). In _handleKeyEvent: check event is KeyDownEvent, check HardwareKeyboard.instance.isShiftPressed. Handle 4 cases: Space (select + advance), Shift+Space (deselect + go back), Enter (create group), Shift+Enter (undo group). Clamp _cursorIndex after each operation. Return KeyEventResult.handled or .ignored.",
+          "status": "pending"
+        },
+        {
+          "id": "subtask-2-4",
+          "description": "Add visual cursor indicator (highlight border) to currently focused photo in grid",
+          "service": "flutter-app",
+          "files_to_modify": [
+            "lib/screens/grouping_screen.dart"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "lib/screens/grouping_screen.dart"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "cd /Users/niknoavak/Desktop/CodeProjects/SebaKolut4 && flutter analyze lib/screens/grouping_screen.dart",
+            "expected": "No issues found"
+          },
+          "implementation_notes": "Pass _cursorIndex to _SelectableThumbnail or create wrapper. Add isCursor bool parameter. When isCursor is true, add a distinct colored border (e.g., Colors.orange or Theme.of(context).colorScheme.tertiary) to distinguish from selected state (which uses primary color). Consider adding subtle animation or glow effect.",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-3-integration",
+      "name": "Integration and Edge Cases",
+      "type": "integration",
+      "description": "Wire all components together, handle edge cases, and verify end-to-end functionality",
+      "depends_on": [
+        "phase-2-ui"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-3-1",
+          "description": "Implement auto-navigation logic: advance cursor after select (Space), go back after deselect (Shift+Space)",
+          "service": "flutter-app",
+          "files_to_modify": [
+            "lib/screens/grouping_screen.dart"
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "cd /Users/niknoavak/Desktop/CodeProjects/SebaKolut4 && flutter analyze lib/screens/grouping_screen.dart",
+            "expected": "No issues found"
+          },
+          "implementation_notes": "After Space: _cursorIndex = (_cursorIndex + 1).clamp(0, ungroupedImages.length - 1). After Shift+Space: _cursorIndex = (_cursorIndex - 1).clamp(0, ungroupedImages.length - 1). Call setState() to rebuild. Handle edge case where list becomes empty after grouping - reset cursor to 0.",
+          "status": "pending"
+        },
+        {
+          "id": "subtask-3-2",
+          "description": "Handle edge cases: empty list, cursor bounds, no groups to undo, text field focus",
+          "service": "flutter-app",
+          "files_to_modify": [
+            "lib/screens/grouping_screen.dart"
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "cd /Users/niknoavak/Desktop/CodeProjects/SebaKolut4 && flutter analyze lib/screens/grouping_screen.dart",
+            "expected": "No issues found"
+          },
+          "implementation_notes": "1) If ungroupedImages.isEmpty, show completion message and disable keyboard nav. 2) Clamp cursor to valid range whenever list changes. 3) In undoLastGroup, check if _lastCreatedGroupId exists. 4) CRITICAL: Check FocusScope.of(context).hasPrimaryFocus or detect if TextField has focus - don't handle keyboard events when user is typing in group name/SKU fields.",
+          "status": "pending"
+        },
+        {
+          "id": "subtask-3-3",
+          "description": "End-to-end verification: test complete keyboard workflow with export directory integration",
+          "service": "flutter-app",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "all_services": true,
+          "verification": {
+            "type": "manual",
+            "instructions": "1) Run flutter run -d macos (or windows). 2) Import some images from ImportScreen. 3) Navigate to GroupingScreen - verify export directory dialog appears. 4) Select a directory. 5) Press Space multiple times - verify photos select and cursor advances. 6) Press Shift+Space - verify photo deselects and cursor goes back. 7) Press Enter - verify group is created. 8) Press Shift+Enter - verify group is undone. 9) Verify cursor indicator is visible. 10) Try typing in group name field - verify Space/Enter don't trigger shortcuts while typing."
+          },
+          "status": "pending"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_phases": 3,
+    "total_subtasks": 10,
+    "services_involved": [
+      "flutter-app"
+    ],
+    "parallelism": {
+      "max_parallel_phases": 1,
+      "parallel_groups": [],
+      "recommended_workers": 1,
+      "speedup_estimate": "N/A - sequential workflow (UI changes depend on provider changes)"
+    },
+    "startup_command": "cd /Users/niknoavak/Desktop/CodeProjects/SebaKolut4 && flutter run"
+  },
+  "verification_strategy": {
+    "risk_level": "low",
+    "skip_validation": false,
+    "test_creation_phase": "post_implementation",
+    "test_types_required": [
+      "unit"
+    ],
+    "security_scanning_required": false,
+    "staging_deployment_required": false,
+    "acceptance_criteria": [
+      "Export destination dialog appears on GroupingScreen entry (desktop/mobile)",
+      "Space key selects current photo and advances cursor",
+      "Shift+Space deselects current photo and moves cursor backward",
+      "Enter key creates group from selected photos",
+      "Shift+Enter undoes the last created group",
+      "Visual cursor indicator visible on focused photo",
+      "Keyboard shortcuts don't interfere with text input fields",
+      "Edge cases handled gracefully (empty list, bounds, no undo available)"
+    ],
+    "verification_steps": [
+      {
+        "name": "Static Analysis",
+        "command": "cd /Users/niknoavak/Desktop/CodeProjects/SebaKolut4 && flutter analyze",
+        "expected_outcome": "No issues found",
+        "type": "lint",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Unit Tests",
+        "command": "cd /Users/niknoavak/Desktop/CodeProjects/SebaKolut4 && flutter test",
+        "expected_outcome": "All tests pass",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      }
+    ],
+    "reasoning": "Low risk UI feature with changes isolated to grouping screen and state providers. Static analysis ensures code quality. Unit tests for state logic are sufficient."
+  },
+  "qa_acceptance": {
+    "unit_tests": {
+      "required": true,
+      "commands": [
+        "flutter test"
+      ],
+      "minimum_coverage": null
+    },
+    "integration_tests": {
+      "required": false,
+      "commands": [],
+      "services_to_test": []
+    },
+    "e2e_tests": {
+      "required": false,
+      "commands": [],
+      "flows": []
+    },
+    "browser_verification": {
+      "required": true,
+      "pages": [
+        {
+          "description": "GroupingScreen on desktop",
+          "command": "flutter run -d macos",
+          "checks": [
+            "Export directory dialog appears",
+            "Keyboard shortcuts work",
+            "Cursor indicator visible"
+          ]
+        },
+        {
+          "description": "GroupingScreen on web",
+          "command": "flutter run -d chrome",
+          "checks": [
+            "No export directory dialog (skipped on web)",
+            "Keyboard shortcuts work",
+            "Cursor indicator visible"
+          ]
+        }
+      ]
+    },
+    "database_verification": {
+      "required": false,
+      "checks": []
+    }
+  },
+  "qa_signoff": null,
+  "status": "in_progress",
+  "planStatus": "in_progress",
+  "updated_at": "2026-01-09T08:23:13.645Z"
+}

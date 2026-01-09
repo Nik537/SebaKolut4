@@ -1,0 +1,39 @@
+{
+  "project_root": "/Users/niknoavak/Desktop/CodeProjects/SebaKolut4",
+  "project_type": "single",
+  "services": {
+    "flutter-app": {
+      "path": ".",
+      "tech_stack": ["flutter", "dart", "riverpod"],
+      "port": null,
+      "dev_command": "flutter run",
+      "test_command": "flutter test",
+      "build_command": "flutter build"
+    }
+  },
+  "infrastructure": {
+    "docker": false,
+    "database": null,
+    "ci_cd": false
+  },
+  "conventions": {
+    "linter": "analysis_options.yaml",
+    "formatter": "dart format",
+    "testing": "flutter test",
+    "state_management": "riverpod",
+    "patterns": [
+      "StateNotifier for complex state with methods",
+      "ConsumerWidget for simple views",
+      "ConsumerStatefulWidget for views needing local state",
+      "copyWith pattern for model updates",
+      "Derived providers for computed state"
+    ]
+  },
+  "key_directories": {
+    "screens": "lib/screens/",
+    "providers": "lib/providers/",
+    "models": "lib/models/",
+    "services": "lib/services/",
+    "widgets": "lib/widgets/"
+  }
+}

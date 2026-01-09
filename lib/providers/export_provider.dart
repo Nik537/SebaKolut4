@@ -7,6 +7,9 @@ import 'groups_provider.dart';
 
 final exportServiceProvider = Provider<ExportService>((ref) => ExportService());
 
+// Store selected export directory path
+final exportDirectoryProvider = StateProvider<String?>((ref) => null);
+
 // Export controller
 final exportControllerProvider = Provider<ExportController>((ref) {
   return ExportController(ref);
