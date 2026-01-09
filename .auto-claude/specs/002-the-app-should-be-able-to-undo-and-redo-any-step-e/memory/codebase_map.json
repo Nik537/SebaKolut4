@@ -4,7 +4,22 @@
       "description": "AppStateSnapshot model captures all undoable state for undo/redo system. Uses deep equality (listEquals/mapEquals) for comparing snapshots. Imports ImageAdjustments from processing_provider.dart.",
       "category": "model",
       "discovered_at": "2026-01-09T08:33:03.031215+00:00"
+    },
+    "lib/providers/export_provider.dart": {
+      "description": "ExportController now supports cancellation via CancelableOperation from async package. Use isExportingProvider and exportCancelledProvider for UI state binding. Call cancelExport() to cancel ongoing exports. Both exportAll() and exportSingleGeneration() check _isCancelled flag throughout export loops and throw ExportCancelledException when cancelled.",
+      "category": "export-cancellation",
+      "discovered_at": "2026-01-09T08:50:01.308491+00:00"
+    },
+    "lib/services/export_service.dart": {
+      "description": "ExportService.exportDualBackground() now accepts isCancelled callback for cancellation support. On desktop/mobile, tracks created files/directories and cleans them up via _cleanupPartialExport() when cancelled. Web downloads cannot be reverted once initiated. Uses ExportCancelledException from export_provider.dart.",
+      "category": "patterns",
+      "discovered_at": "2026-01-09T08:53:21.284451+00:00"
+    },
+    "lib/widgets/undo_redo_buttons.dart": {
+      "description": "UndoRedoButtons is a reusable ConsumerWidget for AppBar actions. It watches canUndoProvider and canRedoProvider for button enabled state. Import from lib/widgets/undo_redo_buttons.dart and use as: const UndoRedoButtons()",
+      "category": "ui_component",
+      "discovered_at": "2026-01-09T08:54:55.453635+00:00"
     }
   },
-  "last_updated": "2026-01-09T08:33:03.031230+00:00"
+  "last_updated": "2026-01-09T08:54:55.453645+00:00"
 }

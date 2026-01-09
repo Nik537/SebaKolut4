@@ -5,6 +5,7 @@ import '../providers/providers.dart';
 import '../services/file_service.dart';
 import '../services/image_cache_service.dart';
 import '../widgets/log_viewer.dart';
+import '../widgets/undo_redo_buttons.dart';
 import 'grouping_screen.dart';
 
 class ImportScreen extends ConsumerStatefulWidget {
@@ -26,6 +27,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
         title: const Text('Import Filament Images'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: const [
+          UndoRedoButtons(),
           LogViewerButton(),
         ],
       ),
