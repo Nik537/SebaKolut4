@@ -29,7 +29,12 @@
       "description": "Unit tests for UndoRedoNotifier covering: initial state, capture/undo/redo operations, history limit enforcement (maxHistorySize=50), clearHistory, state restoration for all providers (images, groups, colorized images, adjustments, selected generations), and derived providers (canUndoProvider, canRedoProvider). Uses ProviderContainer with ImageCacheService override for testing.",
       "category": "testing",
       "discovered_at": "2026-01-09T09:05:19.003232+00:00"
+    },
+    "test/models/app_state_snapshot_test.dart": {
+      "description": "AppStateSnapshot unit tests covering equality, hashCode, copyWith, empty factory, and deep copy verification. Uses helper functions (createTestImage, createTestGroup, createTestColorizedImage) for test fixtures.",
+      "category": "testing",
+      "discovered_at": "2026-01-09T09:08:17.494325+00:00"
     }
   },
-  "last_updated": "2026-01-09T09:05:19.003240+00:00"
+  "last_updated": "2026-01-09T09:08:17.494335+00:00"
 }
