@@ -306,7 +306,9 @@
             "command": "cd /Users/niknoavak/Desktop/CodeProjects/SebaKolut4 && dart analyze lib/screens/grouping_screen.dart",
             "expected": "No issues found"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Added UndoRedoButtons widget to GroupingScreen AppBar actions. Import added and widget placed before LogViewerButton.",
+          "updated_at": "2026-01-09T08:57:23.654171+00:00"
         },
         {
           "id": "subtask-6-3",
@@ -324,7 +326,9 @@
             "command": "cd /Users/niknoavak/Desktop/CodeProjects/SebaKolut4 && dart analyze lib/screens/processing_screen.dart",
             "expected": "No issues found"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Added UndoRedoButtons to ProcessingScreen AppBar actions. Followed the same pattern as import_screen.dart and grouping_screen.dart. Committed successfully.",
+          "updated_at": "2026-01-09T08:58:55.315160+00:00"
         },
         {
           "id": "subtask-6-4",
@@ -554,5 +558,5 @@
   "status": "in_progress",
   "planStatus": "in_progress",
   "updated_at": "2026-01-09T08:29:34.107Z",
-  "last_updated": "2026-01-09T08:56:10.316252+00:00"
+  "last_updated": "2026-01-09T08:58:55.315169+00:00"
 }
