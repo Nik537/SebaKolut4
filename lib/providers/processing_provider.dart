@@ -107,6 +107,11 @@ class ColorizedImagesNotifier extends StateNotifier<List<ColorizedImage>> {
       return null;
     }
   }
+
+  /// Restores state from a snapshot for undo/redo operations.
+  void setStateFromSnapshot(List<ColorizedImage> colorizedImages) {
+    state = colorizedImages;
+  }
 }
 
 // Get colorized images for a specific group
@@ -134,6 +139,11 @@ class AllSelectedGenerationsNotifier extends StateNotifier<Map<String, int>> {
   }
 
   int getGeneration(String groupId) => state[groupId] ?? 0;
+
+  /// Restores state from a snapshot for undo/redo operations.
+  void setStateFromSnapshot(Map<String, int> selectedGenerations) {
+    state = selectedGenerations;
+  }
 }
 
 // Get only the selected colorized images (one per group) for export
@@ -707,6 +717,11 @@ class ImageAdjustmentsNotifier extends StateNotifier<Map<String, ImageAdjustment
 
   void reset(String groupId) {
     state = {...state, groupId: const ImageAdjustments()};
+  }
+
+  /// Restores state from a snapshot for undo/redo operations.
+  void setStateFromSnapshot(Map<String, ImageAdjustments> adjustments) {
+    state = adjustments;
   }
 }
 

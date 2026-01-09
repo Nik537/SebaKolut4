@@ -70,6 +70,11 @@ class ImportedImagesNotifier extends StateNotifier<List<ImportedImage>> {
 
   List<ImportedImage> get ungroupedImages =>
       state.where((img) => !img.isGrouped).toList();
+
+  /// Restores state from a snapshot for undo/redo operations.
+  void setStateFromSnapshot(List<ImportedImage> images) {
+    state = images;
+  }
 }
 
 // Derived provider for selected images

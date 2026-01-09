@@ -58,6 +58,11 @@ class GroupsNotifier extends StateNotifier<List<ImageGroup>> {
   void reset() {
     state = [];
   }
+
+  /// Restores state from a snapshot for undo/redo operations.
+  void setStateFromSnapshot(List<ImageGroup> groups) {
+    state = groups;
+  }
 }
 
 // Provider to get image objects for a specific group
