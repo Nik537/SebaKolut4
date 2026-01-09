@@ -7,6 +7,7 @@ import '../services/image_cache_service.dart';
 import 'images_provider.dart';
 import 'groups_provider.dart';
 import 'log_provider.dart';
+import 'undo_redo_provider.dart';
 
 final geminiServiceProvider = Provider<GeminiService>((ref) => GeminiService());
 final nanoBananaServiceProvider =
@@ -49,19 +50,27 @@ class ImageProcessingStateNotifier
 final colorizedImagesProvider =
     StateNotifierProvider<ColorizedImagesNotifier, List<ColorizedImage>>((ref) {
   final imageCache = ref.watch(imageCacheServiceProvider);
-  return ColorizedImagesNotifier(imageCache);
+  return ColorizedImagesNotifier(imageCache, ref);
 });
 
 class ColorizedImagesNotifier extends StateNotifier<List<ColorizedImage>> {
   final ImageCacheService _imageCache;
+  final Ref _ref;
 
-  ColorizedImagesNotifier(this._imageCache) : super([]);
+  ColorizedImagesNotifier(this._imageCache, this._ref) : super([]);
+
+  /// Captures state before a mutation for undo/redo support.
+  void _captureBeforeMutation() {
+    _ref.read(undoRedoProvider.notifier).captureState();
+  }
 
   void addColorizedImage(ColorizedImage image) {
+    _captureBeforeMutation();
     state = [...state, image];
   }
 
   void updateForGroup(String groupId, ColorizedImage newImage, {String? oldImageId}) {
+    _captureBeforeMutation();
     // Remove old image from cache if provided
     if (oldImageId != null) {
       _imageCache.removeColorizedImage(oldImageId);
@@ -70,6 +79,7 @@ class ColorizedImagesNotifier extends StateNotifier<List<ColorizedImage>> {
   }
 
   void updateForGroupAndGeneration(String groupId, int generationIndex, ColorizedImage newImage, {String? oldImageId}) {
+    _captureBeforeMutation();
     // Remove old image from cache if provided
     if (oldImageId != null) {
       _imageCache.removeColorizedImage(oldImageId);
@@ -83,6 +93,7 @@ class ColorizedImagesNotifier extends StateNotifier<List<ColorizedImage>> {
   }
 
   void removeGenerationsForGroup(String groupId) {
+    _captureBeforeMutation();
     // Remove from cache first
     final toRemove = state.where((img) => img.groupId == groupId).map((img) => img.id).toList();
     _imageCache.removeColorizedImagesForGroup(toRemove);
@@ -90,6 +101,7 @@ class ColorizedImagesNotifier extends StateNotifier<List<ColorizedImage>> {
   }
 
   void reset() {
+    _captureBeforeMutation();
     _imageCache.clearColorizedImages();
     state = [];
   }
@@ -128,13 +140,21 @@ final selectedGenerationProvider =
 // Map of all selected generations (groupId -> generationIndex)
 // This avoids loop-watching in selectedColorizedImagesProvider
 final allSelectedGenerationsProvider = StateNotifierProvider<AllSelectedGenerationsNotifier, Map<String, int>>((ref) {
-  return AllSelectedGenerationsNotifier();
+  return AllSelectedGenerationsNotifier(ref);
 });
 
 class AllSelectedGenerationsNotifier extends StateNotifier<Map<String, int>> {
-  AllSelectedGenerationsNotifier() : super({});
+  final Ref _ref;
+
+  AllSelectedGenerationsNotifier(this._ref) : super({});
+
+  /// Captures state before a mutation for undo/redo support.
+  void _captureBeforeMutation() {
+    _ref.read(undoRedoProvider.notifier).captureState();
+  }
 
   void setGeneration(String groupId, int generationIndex) {
+    _captureBeforeMutation();
     state = {...state, groupId: generationIndex};
   }
 
@@ -680,42 +700,56 @@ class ImageAdjustments {
 // Per-group adjustments state
 final imageAdjustmentsProvider =
     StateNotifierProvider<ImageAdjustmentsNotifier, Map<String, ImageAdjustments>>((ref) {
-  return ImageAdjustmentsNotifier();
+  return ImageAdjustmentsNotifier(ref);
 });
 
 class ImageAdjustmentsNotifier extends StateNotifier<Map<String, ImageAdjustments>> {
-  ImageAdjustmentsNotifier() : super({});
+  final Ref _ref;
+
+  ImageAdjustmentsNotifier(this._ref) : super({});
+
+  /// Captures state before a mutation for undo/redo support.
+  void _captureBeforeMutation() {
+    _ref.read(undoRedoProvider.notifier).captureState();
+  }
 
   void setAdjustments(String groupId, ImageAdjustments adjustments) {
+    _captureBeforeMutation();
     state = {...state, groupId: adjustments};
   }
 
   void updateHue(String groupId, double value) {
+    _captureBeforeMutation();
     final current = state[groupId] ?? const ImageAdjustments();
     state = {...state, groupId: current.copyWith(hue: value)};
   }
 
   void updateSaturation(String groupId, double value) {
+    _captureBeforeMutation();
     final current = state[groupId] ?? const ImageAdjustments();
     state = {...state, groupId: current.copyWith(saturation: value)};
   }
 
   void updateBrightness(String groupId, double value) {
+    _captureBeforeMutation();
     final current = state[groupId] ?? const ImageAdjustments();
     state = {...state, groupId: current.copyWith(brightness: value)};
   }
 
   void updateContrast(String groupId, double value) {
+    _captureBeforeMutation();
     final current = state[groupId] ?? const ImageAdjustments();
     state = {...state, groupId: current.copyWith(contrast: value)};
   }
 
   void updateSharpness(String groupId, double value) {
+    _captureBeforeMutation();
     final current = state[groupId] ?? const ImageAdjustments();
     state = {...state, groupId: current.copyWith(sharpness: value)};
   }
 
   void reset(String groupId) {
+    _captureBeforeMutation();
     state = {...state, groupId: const ImageAdjustments()};
   }
 

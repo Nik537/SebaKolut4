@@ -54,11 +54,35 @@
         }
       ],
       "status": "completed"
+    },
+    "subtask-3-1": {
+      "attempts": [
+        {
+          "session": 6,
+          "timestamp": "2026-01-09T09:41:58.174557",
+          "approach": "Implemented: Add captureBeforeMutation() calls to ImportedImagesNotifier methods (removeImage, toggleSelection, c",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-3-2": {
+      "attempts": [
+        {
+          "session": 7,
+          "timestamp": "2026-01-09T09:44:52.851910",
+          "approach": "Implemented: Add captureBeforeMutation() calls to GroupsNotifier methods (createGroupFromSelection, removeGroup, ",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
     }
   },
   "stuck_subtasks": [],
   "metadata": {
     "created_at": "2026-01-09T09:30:09.284074",
-    "last_updated": "2026-01-09T09:40:13.068775"
+    "last_updated": "2026-01-09T09:44:52.851933"
   }
 }

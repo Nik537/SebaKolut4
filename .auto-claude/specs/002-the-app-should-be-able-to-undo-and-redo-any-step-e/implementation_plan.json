@@ -131,7 +131,9 @@
             "command": "cd /Users/niknoavak/Desktop/CodeProjects/SebaKolut4 && dart analyze lib/providers/images_provider.dart",
             "expected": "No issues found"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Added _captureBeforeMutation() calls to ImportedImagesNotifier methods: removeImage, toggleSelection, clearSelections, markAsGrouped, reset. Added Ref parameter to constructor and imported undo_redo_provider.dart.",
+          "updated_at": "2026-01-09T08:41:50.516278+00:00"
         },
         {
           "id": "subtask-3-2",
@@ -149,7 +151,9 @@
             "command": "cd /Users/niknoavak/Desktop/CodeProjects/SebaKolut4 && dart analyze lib/providers/groups_provider.dart",
             "expected": "No issues found"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Added captureBeforeMutation() calls to all GroupsNotifier mutation methods: createGroupFromSelection (after empty check to avoid unnecessary captures), removeGroup, renameGroup, updateSku, and reset. Follows same pattern as images_provider.dart.",
+          "updated_at": "2026-01-09T08:44:40.171445+00:00"
         },
         {
           "id": "subtask-3-3",
@@ -540,5 +544,5 @@
   "status": "in_progress",
   "planStatus": "in_progress",
   "updated_at": "2026-01-09T08:29:34.107Z",
-  "last_updated": "2026-01-09T08:39:40.536896+00:00"
+  "last_updated": "2026-01-09T08:44:40.171453+00:00"
 }
