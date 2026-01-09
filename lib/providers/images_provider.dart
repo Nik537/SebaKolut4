@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/imported_image.dart';
 import '../services/file_service.dart';
 import '../services/image_cache_service.dart';
+import 'undo_redo_provider.dart';
 
 final fileServiceProvider = Provider<FileService>((ref) {
   final imageCache = ref.watch(imageCacheServiceProvider);
@@ -12,14 +13,20 @@ final importedImagesProvider =
     StateNotifierProvider<ImportedImagesNotifier, List<ImportedImage>>((ref) {
   final fileService = ref.watch(fileServiceProvider);
   final imageCache = ref.watch(imageCacheServiceProvider);
-  return ImportedImagesNotifier(fileService, imageCache);
+  return ImportedImagesNotifier(fileService, imageCache, ref);
 });
 
 class ImportedImagesNotifier extends StateNotifier<List<ImportedImage>> {
   final FileService _fileService;
   final ImageCacheService _imageCache;
+  final Ref _ref;
 
-  ImportedImagesNotifier(this._fileService, this._imageCache) : super([]);
+  ImportedImagesNotifier(this._fileService, this._imageCache, this._ref) : super([]);
+
+  /// Captures state before a mutation for undo/redo support.
+  void _captureBeforeMutation() {
+    _ref.read(undoRedoProvider.notifier).captureState();
+  }
 
   Future<void> pickAndAddImages() async {
     final images = await _fileService.pickImages();
@@ -32,12 +39,14 @@ class ImportedImagesNotifier extends StateNotifier<List<ImportedImage>> {
   }
 
   void removeImage(String id) {
+    _captureBeforeMutation();
     // Remove from cache first
     _imageCache.removeImportedImage(id);
     state = state.where((img) => img.id != id).toList();
   }
 
   void toggleSelection(String id) {
+    _captureBeforeMutation();
     state = state.map((img) {
       if (img.id == id && !img.isGrouped) {
         return img.copyWith(isSelected: !img.isSelected);
@@ -47,10 +56,12 @@ class ImportedImagesNotifier extends StateNotifier<List<ImportedImage>> {
   }
 
   void clearSelections() {
+    _captureBeforeMutation();
     state = state.map((img) => img.copyWith(isSelected: false)).toList();
   }
 
   void markAsGrouped(List<String> imageIds) {
+    _captureBeforeMutation();
     state = state.map((img) {
       if (imageIds.contains(img.id)) {
         return img.copyWith(isSelected: false, isGrouped: true);
@@ -111,6 +122,7 @@ class ImportedImagesNotifier extends StateNotifier<List<ImportedImage>> {
   }
 
   void reset() {
+    _captureBeforeMutation();
     // Clear all cached imported images
     _imageCache.clearImportedImages();
     state = [];
@@ -121,6 +133,11 @@ class ImportedImagesNotifier extends StateNotifier<List<ImportedImage>> {
 
   List<ImportedImage> get ungroupedImages =>
       state.where((img) => !img.isGrouped).toList();
+
+  /// Restores state from a snapshot for undo/redo operations.
+  void setStateFromSnapshot(List<ImportedImage> images) {
+    state = images;
+  }
 }
 
 // Derived provider for selected images

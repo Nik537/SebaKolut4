@@ -3,3 +3,4 @@ export 'image_group.dart';
 export 'color_result.dart';
 export 'colorized_image.dart';
 export 'processing_status.dart';
+export 'app_state_snapshot.dart';

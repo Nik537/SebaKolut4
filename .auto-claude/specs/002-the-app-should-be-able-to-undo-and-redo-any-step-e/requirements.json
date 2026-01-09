@@ -1,0 +1,4 @@
+{
+  "task_description": "The app should be able to undo and redo any step exept for export. Export should be cancellable in case I make a mistake.",
+  "workflow_type": "feature"
+}

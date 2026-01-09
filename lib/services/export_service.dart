@@ -82,13 +82,22 @@ class ExportService {
   /// [directory] - Pre-selected export directory (desktop/mobile).
   ///               Pass null for web platform (uses browser download).
   ///               On desktop, if null, will prompt user to select.
+  /// [isCancelled] - Optional callback to check if export has been cancelled.
+  /// When cancelled, partial files on desktop/mobile are cleaned up.
   Future<void> exportDualBackground({
     required List<ExportImageData> images,
     String? directory,
+    bool Function()? isCancelled,
   }) async {
     if (kIsWeb) {
       // Web: Download each file individually (no folder structure)
+      // Note: Web downloads cannot be cancelled once initiated
       for (final imageData in images) {
+        // Check for cancellation before processing each image
+        if (isCancelled?.call() == true) {
+          throw ExportCancelledException();
+        }
+
         final baseName = imageData.groupName.replaceAll(' ', '-');
 
         // Export transparent background version (lossless WebP with alpha, 2000x2000)
@@ -97,6 +106,11 @@ class ExportService {
           preserveTransparency: true,
           targetSize: exportSizeLarge,
         );
+
+        if (isCancelled?.call() == true) {
+          throw ExportCancelledException();
+        }
+
         await FileSaver.instance.saveFile(
           name: '3d-filament-$baseName-alpha-azurefilm.webp',
           bytes: transparentConverted,
@@ -104,12 +118,22 @@ class ExportService {
           mimeType: MimeType.other,
         );
 
+        // Check for cancellation before zoom processing
+        if (isCancelled?.call() == true) {
+          throw ExportCancelledException();
+        }
+
         // Export zoom version (lossy WebP, 1080x1080)
         final zoomConverted = await _prepareForExport(
           imageData.zoomBytes,
           preserveTransparency: false,
           targetSize: exportSizeSmall,
         );
+
+        if (isCancelled?.call() == true) {
+          throw ExportCancelledException();
+        }
+
         await FileSaver.instance.saveFile(
           name: '3d-filament-$baseName-zoom-azurefilm.webp',
           bytes: zoomConverted,
@@ -117,12 +141,22 @@ class ExportService {
           mimeType: MimeType.other,
         );
 
+        // Check for cancellation before front processing
+        if (isCancelled?.call() == true) {
+          throw ExportCancelledException();
+        }
+
         // Export front version (lossy WebP, 1080x1080)
         final frontConverted = await _prepareForExport(
           imageData.frontBytes,
           preserveTransparency: false,
           targetSize: exportSizeSmall,
         );
+
+        if (isCancelled?.call() == true) {
+          throw ExportCancelledException();
+        }
+
         await FileSaver.instance.saveFile(
           name: '3d-filament-$baseName-front-azurefilm.webp',
           bytes: frontConverted,
@@ -137,42 +171,123 @@ class ExportService {
       );
 
       if (exportDir != null) {
-        for (final imageData in images) {
-          // Create folder: "{GroupName} {SKU}"
-          final folderName = '${imageData.groupName} ${imageData.sku}'.trim();
-          final folderPath = '$exportDir/$folderName';
-          await Directory(folderPath).create(recursive: true);
+        // Track created files and directories for cleanup on cancellation
+        final createdFiles = <File>[];
+        final createdDirectories = <Directory>[];
 
-          // Generate base filename: replace spaces with "-"
-          final baseName = imageData.groupName.replaceAll(' ', '-');
+        try {
+          for (final imageData in images) {
+            // Check for cancellation before processing each image
+            if (isCancelled?.call() == true) {
+              throw ExportCancelledException();
+            }
 
-          // Export transparent background version (lossless WebP with alpha, 2000x2000)
-          final transparentConverted = await _prepareForExport(
-            imageData.transparentBytes,
-            preserveTransparency: true,
-            targetSize: exportSizeLarge,
-          );
-          final transparentFile = File('$folderPath/3d-filament-$baseName-alpha-azurefilm.webp');
-          await transparentFile.writeAsBytes(transparentConverted);
+            // Create folder: "{GroupName} {SKU}"
+            final folderName = '${imageData.groupName} ${imageData.sku}'.trim();
+            final folderPath = '$exportDir/$folderName';
+            final folder = Directory(folderPath);
 
-          // Export zoom version (lossy WebP, 1080x1080)
-          final zoomConverted = await _prepareForExport(
-            imageData.zoomBytes,
-            preserveTransparency: false,
-            targetSize: exportSizeSmall,
-          );
-          final zoomFile = File('$folderPath/3d-filament-$baseName-zoom-azurefilm.webp');
-          await zoomFile.writeAsBytes(zoomConverted);
+            // Track if this is a new directory
+            final folderExisted = await folder.exists();
+            await folder.create(recursive: true);
+            if (!folderExisted) {
+              createdDirectories.add(folder);
+            }
 
-          // Export front version (lossy WebP, 1080x1080)
-          final frontConverted = await _prepareForExport(
-            imageData.frontBytes,
-            preserveTransparency: false,
-            targetSize: exportSizeSmall,
-          );
-          final frontFile = File('$folderPath/3d-filament-$baseName-front-azurefilm.webp');
-          await frontFile.writeAsBytes(frontConverted);
+            // Generate base filename: replace spaces with "-"
+            final baseName = imageData.groupName.replaceAll(' ', '-');
+
+            // Export transparent background version (lossless WebP with alpha, 2000x2000)
+            final transparentConverted = await _prepareForExport(
+              imageData.transparentBytes,
+              preserveTransparency: true,
+              targetSize: exportSizeLarge,
+            );
+
+            if (isCancelled?.call() == true) {
+              throw ExportCancelledException();
+            }
+
+            final transparentFile = File('$folderPath/3d-filament-$baseName-alpha-azurefilm.webp');
+            await transparentFile.writeAsBytes(transparentConverted);
+            createdFiles.add(transparentFile);
+
+            // Check for cancellation before zoom processing
+            if (isCancelled?.call() == true) {
+              throw ExportCancelledException();
+            }
+
+            // Export zoom version (lossy WebP, 1080x1080)
+            final zoomConverted = await _prepareForExport(
+              imageData.zoomBytes,
+              preserveTransparency: false,
+              targetSize: exportSizeSmall,
+            );
+
+            if (isCancelled?.call() == true) {
+              throw ExportCancelledException();
+            }
+
+            final zoomFile = File('$folderPath/3d-filament-$baseName-zoom-azurefilm.webp');
+            await zoomFile.writeAsBytes(zoomConverted);
+            createdFiles.add(zoomFile);
+
+            // Check for cancellation before front processing
+            if (isCancelled?.call() == true) {
+              throw ExportCancelledException();
+            }
+
+            // Export front version (lossy WebP, 1080x1080)
+            final frontConverted = await _prepareForExport(
+              imageData.frontBytes,
+              preserveTransparency: false,
+              targetSize: exportSizeSmall,
+            );
+
+            if (isCancelled?.call() == true) {
+              throw ExportCancelledException();
+            }
+
+            final frontFile = File('$folderPath/3d-filament-$baseName-front-azurefilm.webp');
+            await frontFile.writeAsBytes(frontConverted);
+            createdFiles.add(frontFile);
+          }
+        } on ExportCancelledException {
+          // Cleanup partial files on cancellation
+          await _cleanupPartialExport(createdFiles, createdDirectories);
+          rethrow;
         }
+      }
+    }
+  }
+
+  /// Clean up partial export files and empty directories created during a cancelled export
+  Future<void> _cleanupPartialExport(
+    List<File> files,
+    List<Directory> directories,
+  ) async {
+    // Delete files first
+    for (final file in files) {
+      try {
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (_) {
+        // Ignore cleanup errors - best effort cleanup
+      }
+    }
+
+    // Delete empty directories (in reverse order to handle nested dirs)
+    for (final directory in directories.reversed) {
+      try {
+        if (await directory.exists()) {
+          final contents = await directory.list().toList();
+          if (contents.isEmpty) {
+            await directory.delete();
+          }
+        }
+      } catch (_) {
+        // Ignore cleanup errors - best effort cleanup
       }
     }
   }

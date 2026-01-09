@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../models/image_group.dart';
 import 'images_provider.dart';
+import 'undo_redo_provider.dart';
 
 final groupsProvider =
     StateNotifierProvider<GroupsNotifier, List<ImageGroup>>((ref) {
@@ -18,9 +19,16 @@ class GroupsNotifier extends StateNotifier<List<ImageGroup>> {
   /// Returns the ID of the last created group, or null if no group was created
   String? get lastCreatedGroupId => _lastCreatedGroupId;
 
+  /// Captures state before a mutation for undo/redo support.
+  void _captureBeforeMutation() {
+    _ref.read(undoRedoProvider.notifier).captureState();
+  }
+
   void createGroupFromSelection() {
     final selectedImages = _ref.read(selectedImagesProvider);
     if (selectedImages.isEmpty) return;
+
+    _captureBeforeMutation();
 
     final imageIds = selectedImages.map((img) => img.id).toList();
 
@@ -41,6 +49,7 @@ class GroupsNotifier extends StateNotifier<List<ImageGroup>> {
   }
 
   void removeGroup(String groupId) {
+    _captureBeforeMutation();
     state = state.where((g) => g.id != groupId).toList();
   }
 
@@ -72,6 +81,7 @@ class GroupsNotifier extends StateNotifier<List<ImageGroup>> {
   }
 
   void renameGroup(String groupId, String newName) {
+    _captureBeforeMutation();
     state = state.map((g) {
       if (g.id == groupId) {
         return g.copyWith(name: newName);
@@ -81,6 +91,7 @@ class GroupsNotifier extends StateNotifier<List<ImageGroup>> {
   }
 
   void updateSku(String groupId, String sku) {
+    _captureBeforeMutation();
     state = state.map((g) {
       if (g.id == groupId) {
         return g.copyWith(sku: sku);
@@ -90,8 +101,14 @@ class GroupsNotifier extends StateNotifier<List<ImageGroup>> {
   }
 
   void reset() {
+    _captureBeforeMutation();
     state = [];
     _lastCreatedGroupId = null;
+  }
+
+  /// Restores state from a snapshot for undo/redo operations.
+  void setStateFromSnapshot(List<ImageGroup> groups) {
+    state = groups;
   }
 }
 

@@ -1,0 +1,102 @@
+{
+  "task_description": "Implement undo/redo system for all operations except export. Export should be cancellable.",
+  "scoped_services": ["filament_colorizer"],
+  "files_to_modify": {
+    "providers": [
+      "lib/providers/images_provider.dart",
+      "lib/providers/groups_provider.dart",
+      "lib/providers/processing_provider.dart",
+      "lib/providers/export_provider.dart"
+    ],
+    "services": [
+      "lib/services/export_service.dart"
+    ],
+    "screens": [
+      "lib/screens/import_screen.dart",
+      "lib/screens/grouping_screen.dart",
+      "lib/screens/processing_screen.dart",
+      "lib/screens/export_screen.dart"
+    ],
+    "entry_point": [
+      "lib/main.dart"
+    ],
+    "config": [
+      "pubspec.yaml"
+    ]
+  },
+  "files_to_create": {
+    "providers": [
+      "lib/providers/undo_redo_provider.dart"
+    ],
+    "models": [
+      "lib/models/app_state_snapshot.dart"
+    ],
+    "widgets": [
+      "lib/widgets/undo_redo_buttons.dart"
+    ]
+  },
+  "files_to_reference": [
+    {
+      "file": "lib/providers/images_provider.dart",
+      "pattern": "StateNotifierProvider pattern, immutable list updates"
+    },
+    {
+      "file": "lib/providers/groups_provider.dart",
+      "pattern": "Cross-provider communication using Ref"
+    },
+    {
+      "file": "lib/models/imported_image.dart",
+      "pattern": "Immutable model with const constructor, copyWith, equality operators"
+    },
+    {
+      "file": "lib/models/image_group.dart",
+      "pattern": "Immutable model with List field handling"
+    },
+    {
+      "file": "lib/services/image_cache_service.dart",
+      "pattern": "Binary data separation from metadata"
+    },
+    {
+      "file": "lib/screens/export_screen.dart",
+      "pattern": "ConsumerStatefulWidget pattern, async export handling"
+    }
+  ],
+  "patterns": {
+    "state_notifier": "All providers use StateNotifier<T> with immutable state updates via state = newState",
+    "immutable_updates": "Always create new List/Map instances, use copyWith for partial model updates",
+    "binary_data_separation": "Image bytes stored in ImageCacheService, only metadata in provider state",
+    "cross_provider_mutation": "Use ref.read(otherProvider.notifier).method() for cross-provider state changes",
+    "widget_pattern": "ConsumerStatefulWidget with ref.watch() for reactive, ref.read() for mutations"
+  },
+  "existing_implementations": {
+    "state_management": {
+      "description": "Riverpod StateNotifier pattern throughout. All state is immutable.",
+      "files": [
+        "lib/providers/images_provider.dart",
+        "lib/providers/groups_provider.dart",
+        "lib/providers/processing_provider.dart"
+      ]
+    },
+    "image_cache": {
+      "description": "ImageCacheService stores binary image bytes separately from metadata",
+      "files": ["lib/services/image_cache_service.dart"],
+      "note": "Critical: undo/redo should NOT store bytes in history, only metadata"
+    },
+    "cross_cutting_operation": {
+      "description": "createGroupFromSelection() modifies both GroupsNotifier and ImagesProvider state",
+      "file": "lib/providers/groups_provider.dart",
+      "note": "Undo must restore both states atomically"
+    },
+    "export": {
+      "description": "ExportController.exportAll() is async Future with no cancellation mechanism",
+      "files": ["lib/providers/export_provider.dart", "lib/services/export_service.dart"]
+    }
+  },
+  "critical_constraints": {
+    "memory": "Do NOT store Uint8List bytes in undo history - will cause memory explosion",
+    "atomicity": "Cross-provider operations must be undone atomically (groups + images together)",
+    "export_exclusion": "Export operations must NOT be added to undo history",
+    "history_limit": "Limit undo history to 50 states to prevent memory issues"
+  },
+  "created_at": "2026-01-09T09:30:00.000000"
+}

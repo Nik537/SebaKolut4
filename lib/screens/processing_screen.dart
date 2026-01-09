@@ -10,6 +10,7 @@ import '../providers/providers.dart';
 import '../models/models.dart';
 import '../services/image_cache_service.dart';
 import '../widgets/log_viewer.dart';
+import '../widgets/undo_redo_buttons.dart';
 import 'export_screen.dart';
 
 /// Build a 5x4 color matrix for GPU-based image adjustments.
@@ -200,6 +201,7 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen>
                 child: const Text('Start Processing'),
               ),
             ),
+          const UndoRedoButtons(),
           const LogViewerButton(),
         ],
         bottom: groups.length > 1

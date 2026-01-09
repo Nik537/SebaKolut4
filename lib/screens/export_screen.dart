@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/providers.dart';
 import '../services/image_cache_service.dart';
 import '../widgets/log_viewer.dart';
+import '../widgets/undo_redo_buttons.dart';
 
 class ExportScreen extends ConsumerStatefulWidget {
   const ExportScreen({super.key});
@@ -13,8 +14,6 @@ class ExportScreen extends ConsumerStatefulWidget {
 }
 
 class _ExportScreenState extends ConsumerState<ExportScreen> {
-  bool _isExporting = false;
-
   Future<void> _exportAll() async {
     // Step 1: Ask for export directory FIRST (before any processing)
     final exportService = ref.read(exportServiceProvider);
@@ -25,15 +24,25 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
       return;
     }
 
-    // Step 2: NOW show loading spinner and start processing
-    setState(() => _isExporting = true);
+    // Store the directory for the export controller to use
+    ref.read(exportDirectoryProvider.notifier).state = directory;
+
     try {
-      await ref.read(exportControllerProvider).exportAll(directory: directory);
+      await ref.read(exportControllerProvider).exportAll();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Export complete!'),
             backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } on ExportCancelledException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Export cancelled'),
+            backgroundColor: Colors.orange,
           ),
         );
       }
@@ -46,23 +55,25 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
           ),
         );
       }
-    } finally {
-      if (mounted) {
-        setState(() => _isExporting = false);
-      }
     }
+  }
+
+  void _cancelExport() {
+    ref.read(exportControllerProvider).cancelExport();
   }
 
   @override
   Widget build(BuildContext context) {
     final colorizedImages = ref.watch(selectedColorizedImagesProvider);
     final groups = ref.watch(groupsProvider);
+    final isExporting = ref.watch(isExportingProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Export Images'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: const [
+          UndoRedoButtons(),
           LogViewerButton(),
         ],
       ),
@@ -177,32 +188,54 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
                   ),
                 ),
                 const Divider(height: 1),
-                // Export button
+                // Export and Cancel buttons
                 Padding(
                   padding: const EdgeInsets.all(16),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _isExporting || colorizedImages.isEmpty
-                          ? null
-                          : _exportAll,
-                      icon: _isExporting
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.download),
-                      label: Text(_isExporting ? 'Exporting...' : 'Export All'),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        backgroundColor: Theme.of(context).colorScheme.primary,
-                        foregroundColor: Colors.white,
+                  child: Column(
+                    children: [
+                      // Export button
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: isExporting || colorizedImages.isEmpty
+                              ? null
+                              : _exportAll,
+                          icon: isExporting
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.download),
+                          label: Text(isExporting ? 'Exporting...' : 'Export All'),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            backgroundColor: Theme.of(context).colorScheme.primary,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
                       ),
-                    ),
+                      // Cancel button (only visible during export)
+                      if (isExporting) ...[
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _cancelExport,
+                            icon: const Icon(Icons.cancel),
+                            label: const Text('Cancel Export'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              foregroundColor: Colors.red,
+                              side: const BorderSide(color: Colors.red),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ],

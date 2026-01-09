@@ -7,6 +7,7 @@ import '../providers/providers.dart';
 import '../models/models.dart';
 import '../services/image_cache_service.dart';
 import '../widgets/log_viewer.dart';
+import '../widgets/undo_redo_buttons.dart';
 import 'processing_screen.dart';
 
 class GroupingScreen extends ConsumerStatefulWidget {
@@ -147,6 +148,7 @@ class _GroupingScreenState extends ConsumerState<GroupingScreen> {
         title: const Text('Create Groups'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: const [
+          UndoRedoButtons(),
           LogViewerButton(),
         ],
       ),

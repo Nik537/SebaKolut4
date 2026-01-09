@@ -1,0 +1,120 @@
+{
+  "complexity": "standard",
+  "workflow_type": "feature",
+  "confidence": 0.85,
+  "reasoning": "Undo/redo implementation requires modifying 4 existing providers plus creating a new undo manager. Cross-cutting state changes (groups affect images) add complexity. No external integrations needed, but Riverpod-specific undo patterns may require research. Export cancellation is straightforward async handling.",
+
+  "analysis": {
+    "scope": {
+      "estimated_files": 8,
+      "estimated_services": 1,
+      "is_cross_cutting": true,
+      "notes": "4 provider files need modification (images, groups, processing, export), plus new undo provider, potential UI changes for undo/redo buttons. Cross-cutting because createGroupFromSelection() modifies both groups and images state."
+    },
+    "integrations": {
+      "external_services": [],
+      "new_dependencies": [],
+      "research_needed": true,
+      "notes": "No external services. May benefit from existing undo packages but can be implemented natively with Command/Memento pattern. Research needed for Riverpod-specific undo/redo best practices."
+    },
+    "infrastructure": {
+      "docker_changes": false,
+      "database_changes": false,
+      "config_changes": false,
+      "notes": "Pure application logic change. No infrastructure impact."
+    },
+    "knowledge": {
+      "patterns_exist": true,
+      "research_required": true,
+      "unfamiliar_tech": [],
+      "notes": "Undo/redo patterns (Command, Memento) are well-known. However, implementing them cleanly with Riverpod StateNotifiers may require research for best practices. Need to handle interconnected state changes atomically."
+    },
+    "risk": {
+      "level": "medium",
+      "concerns": [
+        "Cross-cutting state changes need atomic undo (groups+images together)",
+        "Memory management for undo stack (unbounded history = memory leak)",
+        "Async operations in processing need careful handling",
+        "Image cache cleanup when undoing image additions",
+        "Export cancellation must not corrupt partial state"
+      ],
+      "notes": "Medium risk due to complex state interdependencies. Undo stack could cause memory issues if not bounded. Cache management critical for image operations."
+    }
+  },
+
+  "operations_inventory": {
+    "undoable_operations": {
+      "images_provider": [
+        "pickAndAddImages - add multiple images",
+        "addDroppedFiles - add dropped files",
+        "removeImage - remove single image",
+        "toggleSelection - toggle image selection",
+        "clearSelections - clear all selections",
+        "markAsGrouped - mark images as grouped",
+        "reset - reset all images"
+      ],
+      "groups_provider": [
+        "createGroupFromSelection - create group (CROSS-CUTTING: also modifies images)",
+        "removeGroup - remove group",
+        "renameGroup - rename group",
+        "updateSku - update SKU",
+        "reset - reset all groups"
+      ],
+      "processing_provider": [
+        "ImageAdjustments changes - hue/saturation/brightness/contrast/sharpness",
+        "selectedGeneration changes - generation selection per group",
+        "recolorizeGeneration - re-colorize with new hex (async)",
+        "regenerateGroup - regenerate all generations (async, complex)"
+      ]
+    },
+    "non_undoable_operations": [
+      "exportAll - file export (needs cancellation instead)",
+      "exportSingleGeneration - single file export (needs cancellation instead)",
+      "processAllGroups - AI processing (one-way operation)"
+    ]
+  },
+
+  "recommended_phases": [
+    "discovery",
+    "requirements",
+    "research",
+    "context",
+    "spec_writing",
+    "planning",
+    "validation"
+  ],
+
+  "flags": {
+    "needs_research": true,
+    "needs_self_critique": false,
+    "needs_infrastructure_setup": false
+  },
+
+  "validation_recommendations": {
+    "risk_level": "medium",
+    "skip_validation": false,
+    "minimal_mode": false,
+    "test_types_required": ["unit", "integration"],
+    "security_scan_required": false,
+    "staging_deployment_required": false,
+    "reasoning": "Multiple provider modifications with interconnected state require thorough unit testing for individual operations and integration testing for cross-cutting undo operations. No security concerns as this is purely UI state management."
+  },
+
+  "implementation_notes": {
+    "key_challenges": [
+      "Atomic undo for cross-cutting operations (createGroupFromSelection affects 2 providers)",
+      "Undo stack memory management - need max history limit",
+      "Cache cleanup when undoing image additions",
+      "Handling async operations (some operations are async but undo should be sync)",
+      "Export cancellation needs CancellationToken pattern"
+    ],
+    "suggested_approach": "Command pattern with composite commands for cross-cutting operations. Central UndoManager provider coordinates undo/redo stack. Export uses Completer with cancellation flag.",
+    "complexity_drivers": [
+      "Cross-cutting state changes between providers",
+      "Image cache management during undo",
+      "Multiple StateNotifier classes to coordinate"
+    ]
+  },
+
+  "created_at": "2025-01-09T12:00:00Z"
+}

@@ -1,0 +1,34 @@
+{
+  "project_root": "/Users/niknoavak/Desktop/CodeProjects/SebaKolut4",
+  "project_type": "single",
+  "services": {
+    "filament_colorizer": {
+      "path": ".",
+      "tech_stack": ["dart", "flutter", "riverpod"],
+      "port": null,
+      "dev_command": "flutter run",
+      "test_command": "flutter test",
+      "build_command": "flutter build"
+    }
+  },
+  "infrastructure": {
+    "docker": false,
+    "database": null,
+    "ci_cd": null
+  },
+  "conventions": {
+    "linter": "flutter_lints",
+    "formatter": "dart format",
+    "testing": "flutter_test",
+    "state_management": "riverpod",
+    "model_pattern": "immutable with copyWith"
+  },
+  "key_directories": {
+    "lib/providers": "Riverpod StateNotifier providers",
+    "lib/models": "Immutable data models",
+    "lib/services": "Business logic services",
+    "lib/screens": "UI screen widgets",
+    "lib/widgets": "Reusable UI components"
+  },
+  "platforms": ["windows", "macos", "android", "ios", "web"]
+}

@@ -1,0 +1,40 @@
+{
+  "discovered_files": {
+    "lib/models/app_state_snapshot.dart": {
+      "description": "AppStateSnapshot model captures all undoable state for undo/redo system. Uses deep equality (listEquals/mapEquals) for comparing snapshots. Imports ImageAdjustments from processing_provider.dart.",
+      "category": "model",
+      "discovered_at": "2026-01-09T08:33:03.031215+00:00"
+    },
+    "lib/providers/export_provider.dart": {
+      "description": "ExportController now supports cancellation via CancelableOperation from async package. Use isExportingProvider and exportCancelledProvider for UI state binding. Call cancelExport() to cancel ongoing exports. Both exportAll() and exportSingleGeneration() check _isCancelled flag throughout export loops and throw ExportCancelledException when cancelled.",
+      "category": "export-cancellation",
+      "discovered_at": "2026-01-09T08:50:01.308491+00:00"
+    },
+    "lib/services/export_service.dart": {
+      "description": "ExportService.exportDualBackground() now accepts isCancelled callback for cancellation support. On desktop/mobile, tracks created files/directories and cleans them up via _cleanupPartialExport() when cancelled. Web downloads cannot be reverted once initiated. Uses ExportCancelledException from export_provider.dart.",
+      "category": "patterns",
+      "discovered_at": "2026-01-09T08:53:21.284451+00:00"
+    },
+    "lib/widgets/undo_redo_buttons.dart": {
+      "description": "UndoRedoButtons is a reusable ConsumerWidget for AppBar actions. It watches canUndoProvider and canRedoProvider for button enabled state. Import from lib/widgets/undo_redo_buttons.dart and use as: const UndoRedoButtons()",
+      "category": "ui_component",
+      "discovered_at": "2026-01-09T08:54:55.453635+00:00"
+    },
+    "lib/main.dart": {
+      "description": "Keyboard shortcuts for undo/redo implemented via Shortcuts and Actions widgets wrapping MaterialApp. Uses UndoIntent/RedoIntent classes with SingleActivator for Ctrl+Z, Ctrl+Shift+Z (Windows/Linux) and Command+Z, Command+Shift+Z (macOS). FilamentColorizerApp is a ConsumerWidget to access undoRedoProvider.",
+      "category": "ui_pattern",
+      "discovered_at": "2026-01-09T09:02:53.706947+00:00"
+    },
+    "test/providers/undo_redo_provider_test.dart": {
+      "description": "Unit tests for UndoRedoNotifier covering: initial state, capture/undo/redo operations, history limit enforcement (maxHistorySize=50), clearHistory, state restoration for all providers (images, groups, colorized images, adjustments, selected generations), and derived providers (canUndoProvider, canRedoProvider). Uses ProviderContainer with ImageCacheService override for testing.",
+      "category": "testing",
+      "discovered_at": "2026-01-09T09:05:19.003232+00:00"
+    },
+    "test/models/app_state_snapshot_test.dart": {
+      "description": "AppStateSnapshot unit tests covering equality, hashCode, copyWith, empty factory, and deep copy verification. Uses helper functions (createTestImage, createTestGroup, createTestColorizedImage) for test fixtures.",
+      "category": "testing",
+      "discovered_at": "2026-01-09T09:08:17.494325+00:00"
+    }
+  },
+  "last_updated": "2026-01-09T09:08:17.494335+00:00"
+}
