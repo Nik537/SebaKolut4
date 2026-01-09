@@ -60,6 +60,17 @@ class _GroupingScreenState extends ConsumerState<GroupingScreen> {
       return KeyEventResult.ignored;
     }
 
+    // Don't handle keyboard shortcuts when text field has focus
+    // This prevents Space/Enter from triggering selection while typing
+    final primaryFocus = FocusManager.instance.primaryFocus;
+    if (primaryFocus != null && primaryFocus.context != null) {
+      // Check if focus is on an editable text widget (TextField)
+      final editableText = primaryFocus.context!.findAncestorWidgetOfExactType<EditableText>();
+      if (editableText != null) {
+        return KeyEventResult.ignored;
+      }
+    }
+
     final ungroupedImages = ref.read(ungroupedImagesProvider);
 
     // Don't handle keyboard shortcuts when list is empty
