@@ -13,8 +13,19 @@ final nanoBananaServiceProvider =
     Provider<NanoBananaService>((ref) => NanoBananaService());
 
 // Template image bytes provider (using SILK Template.png with transparency)
+// DEPRECATED: Use templateImageByTypeProvider for filament-type-aware loading
 final templateImageProvider = FutureProvider<Uint8List>((ref) async {
   final data = await rootBundle.load('assets/images/SILK Template.png');
+  return data.buffer.asUint8List();
+});
+
+// Template image bytes provider by filament type
+final templateImageByTypeProvider =
+    FutureProvider.family<Uint8List, String?>((ref, filamentType) async {
+  final basePath = filamentType != null
+      ? 'assets/TEMPLATES FOR DIFFERENT FILAMENTS/$filamentType'
+      : 'assets/images';
+  final data = await rootBundle.load('$basePath/SILK Template.png');
   return data.buffer.asUint8List();
 });
 
@@ -190,23 +201,28 @@ class ProcessingController {
     _log.info('Starting processing for ${groups.length} groups');
 
     try {
-      final templateBytes = await _ref.read(templateImageProvider.future);
-      _log.info('Template image loaded (${templateBytes.length} bytes)');
-
       final geminiService = _ref.read(geminiServiceProvider);
       final nanoBananaService = _ref.read(nanoBananaServiceProvider);
 
-      // Initialize services
+      // Initialize Gemini service
       _log.info('Initializing Gemini service...');
       geminiService.initialize();
       _log.success('Gemini service initialized');
 
-      _log.info('Initializing Nano Banana service...');
-      await nanoBananaService.initialize();
-      _log.success('Nano Banana service initialized');
-
       for (final group in groups) {
-        _log.info('Processing group: ${group.name} (${group.imageIds.length} images)');
+        _log.info('Processing group: ${group.name} (${group.imageIds.length} images, filament: ${group.filamentType})');
+
+        // Load template for this group's filament type
+        final templateBytes = await _ref.read(
+          templateImageByTypeProvider(group.filamentType).future,
+        );
+        _log.info('Template image loaded for ${group.filamentType ?? 'default'} (${templateBytes.length} bytes)');
+
+        // Initialize NanoBananaService with the group's filament type
+        _log.info('Initializing Nano Banana service for ${group.filamentType ?? 'default'}...');
+        await nanoBananaService.initialize(filamentType: group.filamentType);
+        _log.success('Nano Banana service initialized');
+
         await _processGroup(
           group: group,
           images: images,
@@ -433,11 +449,14 @@ class ProcessingController {
     _log.info('Re-colorizing generation ${generationIndex + 1} with $newHexColor...');
 
     try {
-      final templateBytes = await _ref.read(templateImageProvider.future);
+      // Load template for this group's filament type
+      final templateBytes = await _ref.read(
+        templateImageByTypeProvider(group.filamentType).future,
+      );
       final nanoBananaService = _ref.read(nanoBananaServiceProvider);
 
-      // Ensure service is initialized
-      await nanoBananaService.initialize();
+      // Ensure service is initialized with correct filament type
+      await nanoBananaService.initialize(filamentType: group.filamentType);
 
       // Mark first image as colorizing (to show progress)
       processingNotifier.setStatus(groupImages.first.id, ProcessingStatus.colorizing, extractedHex: newHexColor);
@@ -517,13 +536,16 @@ class ProcessingController {
     }
 
     try {
-      final templateBytes = await _ref.read(templateImageProvider.future);
+      // Load template for this group's filament type
+      final templateBytes = await _ref.read(
+        templateImageByTypeProvider(group.filamentType).future,
+      );
       final geminiService = _ref.read(geminiServiceProvider);
       final nanoBananaService = _ref.read(nanoBananaServiceProvider);
 
-      // Ensure services are initialized
+      // Ensure services are initialized with correct filament type
       geminiService.initialize();
-      await nanoBananaService.initialize();
+      await nanoBananaService.initialize(filamentType: group.filamentType);
 
       // Remove existing generations for this group (also cleans cache)
       colorizedNotifier.removeGenerationsForGroup(groupId);
@@ -765,6 +787,10 @@ final adjustedImageByGenerationProvider =
   final baseColorizedBytes = imageCache.getBaseColorizedImage(colorizedImage.id);
   if (baseColorizedBytes == null) return null;
 
+  // Get per-group carton overlay (based on group's filament type)
+  final cartonBytesAsync = ref.watch(cartonOverlayByGroupProvider(params.groupId));
+  final cartonBytes = cartonBytesAsync.valueOrNull;
+
   final nanoBananaService = ref.read(nanoBananaServiceProvider);
   return nanoBananaService.applyAdjustments(
     baseColorizedBytes: baseColorizedBytes,
@@ -774,6 +800,7 @@ final adjustedImageByGenerationProvider =
     contrast: adjustments.contrast,
     sharpness: adjustments.sharpness,
     useWhiteBackground: true,
+    cartonOverrideBytes: cartonBytes,
   );
 });
 
@@ -787,7 +814,21 @@ final baseColorizedBytesProvider =
 });
 
 // Provider for carton overlay bytes (for GPU-based preview)
+// DEPRECATED: Use cartonOverlayByGroupProvider for filament-type-aware loading
 final cartonOverlayBytesProvider = Provider<Uint8List?>((ref) {
   final nanoBananaService = ref.watch(nanoBananaServiceProvider);
   return nanoBananaService.cartonImageBytes;
+});
+
+// Carton overlay bytes provider by group (loads correct carton for group's filament type)
+final cartonOverlayByGroupProvider = FutureProvider.family<Uint8List?, String>((ref, groupId) async {
+  final groups = ref.watch(groupsProvider);
+  final group = groups.where((g) => g.id == groupId).firstOrNull;
+  if (group == null) return null;
+
+  final basePath = group.filamentType != null
+      ? 'assets/TEMPLATES FOR DIFFERENT FILAMENTS/${group.filamentType}'
+      : 'assets/images';
+  final data = await rootBundle.load('$basePath/Carton.png');
+  return data.buffer.asUint8List();
 });

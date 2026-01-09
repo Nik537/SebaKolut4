@@ -1,0 +1,4 @@
+# List of available filament type folders
+# Add new folder names here when adding new filament types
+PLA Silk
+Refill Silk

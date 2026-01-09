@@ -17,7 +17,17 @@ class ExportController {
 
   ExportController(this._ref);
 
-  Future<void> exportAll() async {
+  /// Pick export directory (for non-web platforms)
+  /// Returns null if user cancels
+  Future<String?> pickExportDirectory() async {
+    final exportService = _ref.read(exportServiceProvider);
+    return await exportService.pickExportDirectory();
+  }
+
+  /// Export all groups to the specified directory
+  /// For web: directory is ignored
+  /// For desktop/mobile: directory must be provided
+  Future<void> exportAll({String? directory}) async {
     final groups = _ref.read(groupsProvider);
     final exportService = _ref.read(exportServiceProvider);
     final nanoBananaService = _ref.read(nanoBananaServiceProvider);
@@ -38,6 +48,9 @@ class ExportController {
       // Get base colorized bytes from cache
       final baseColorizedBytes = imageCache.getBaseColorizedImage(image.id);
       if (baseColorizedBytes == null) continue;
+
+      // Initialize NanoBananaService with this group's filament type
+      await nanoBananaService.initialize(filamentType: group.filamentType);
 
       // Use generation-specific adjustment key
       final adjustmentKey = '${group.id}:$selectedGeneration';
@@ -83,11 +96,13 @@ class ExportController {
       ));
     }
 
-    await exportService.exportDualBackground(images: exportData);
+    await exportService.exportDualBackground(images: exportData, directory: directory);
   }
 
   /// Export a single generation from a specific group
-  Future<void> exportSingleGeneration(String groupId, int generationIndex) async {
+  /// For web: directory is ignored
+  /// For desktop/mobile: directory must be provided
+  Future<void> exportSingleGeneration(String groupId, int generationIndex, {String? directory}) async {
     final colorizedNotifier = _ref.read(colorizedImagesProvider.notifier);
     final colorizedImage = colorizedNotifier.getByGroupAndGeneration(groupId, generationIndex);
 
@@ -108,6 +123,9 @@ class ExportController {
 
     final exportService = _ref.read(exportServiceProvider);
     final nanoBananaService = _ref.read(nanoBananaServiceProvider);
+
+    // Initialize NanoBananaService with this group's filament type
+    await nanoBananaService.initialize(filamentType: group.filamentType);
 
     // Use generation-specific adjustment key
     final adjustmentKey = '$groupId:$generationIndex';
@@ -152,7 +170,7 @@ class ExportController {
       frontBytes: frontBytes,
     );
 
-    await exportService.exportDualBackground(images: [exportData]);
+    await exportService.exportDualBackground(images: [exportData], directory: directory);
   }
 }
 

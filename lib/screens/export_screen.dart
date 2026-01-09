@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/providers.dart';
@@ -16,9 +16,25 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
   bool _isExporting = false;
 
   Future<void> _exportAll() async {
+    final exportController = ref.read(exportControllerProvider);
+
+    // Step 1: Pick directory FIRST (before showing spinner)
+    // On web, directory is not needed
+    String? directory;
+    if (!kIsWeb) {
+      directory = await exportController.pickExportDirectory();
+      if (directory == null) {
+        // User cancelled directory picker
+        return;
+      }
+    }
+
+    // Step 2: Show spinner AFTER directory is selected
     setState(() => _isExporting = true);
+
     try {
-      await ref.read(exportControllerProvider).exportAll();
+      // Step 3 & 4: Prepare data and write files
+      await exportController.exportAll(directory: directory);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

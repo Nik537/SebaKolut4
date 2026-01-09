@@ -574,7 +574,11 @@ img.Image _composite3LayersWithCartonStatic(
 // ============================================================================
 
 class NanoBananaService {
+  static const String _templateBasePath =
+      'assets/TEMPLATES FOR DIFFERENT FILAMENTS';
+
   bool _isInitialized = false;
+  String? _currentFilamentType;
   Uint8List? _cartonImageBytes;
   Uint8List? _zoomedSilkTemplateBytes;
   Uint8List? _zoomedCartonImageBytes;
@@ -584,29 +588,54 @@ class NanoBananaService {
   /// Get the carton overlay image bytes (for GPU-based preview)
   Uint8List? get cartonImageBytes => _cartonImageBytes;
 
-  Future<void> initialize() async {
-    if (_isInitialized) return;
+  /// Get the current filament type
+  String? get currentFilamentType => _currentFilamentType;
+
+  /// Initialize the service with templates from the specified filament type folder.
+  /// If filamentType is null, falls back to assets/images/ for backwards compatibility.
+  Future<void> initialize({String? filamentType}) async {
+    // If already initialized with the same filament type, skip
+    if (_isInitialized && _currentFilamentType == filamentType) return;
+
+    // Reset if switching filament types
+    if (_currentFilamentType != filamentType) {
+      _isInitialized = false;
+      _cartonImageBytes = null;
+      _zoomedSilkTemplateBytes = null;
+      _zoomedCartonImageBytes = null;
+      _frontTemplateBytes = null;
+      _frontCartonBytes = null;
+    }
+
+    final basePath = filamentType != null
+        ? '$_templateBasePath/$filamentType'
+        : 'assets/images';
 
     // Load the carton overlay image
-    final byteData = await rootBundle.load('assets/images/Carton.png');
+    final byteData = await rootBundle.load('$basePath/Carton.png');
     _cartonImageBytes = byteData.buffer.asUint8List();
 
     // Load zoomed SILK template
-    final zoomedSilkData = await rootBundle.load('assets/images/Zoomed SILK Template.png');
+    final zoomedSilkData =
+        await rootBundle.load('$basePath/Zoomed SILK Template.png');
     _zoomedSilkTemplateBytes = zoomedSilkData.buffer.asUint8List();
 
     // Load zoomed carton overlay
-    final zoomedCartonData = await rootBundle.load('assets/images/Zoomed Karton.png');
+    final zoomedCartonData =
+        await rootBundle.load('$basePath/Zoomed Karton.png');
     _zoomedCartonImageBytes = zoomedCartonData.buffer.asUint8List();
 
     // Load front template
-    final frontTemplateData = await rootBundle.load('assets/images/Kolut in gorila spodaj.png');
+    final frontTemplateData =
+        await rootBundle.load('$basePath/Kolut in gorila spodaj.png');
     _frontTemplateBytes = frontTemplateData.buffer.asUint8List();
 
     // Load front carton overlay
-    final frontCartonData = await rootBundle.load('assets/images/CartonGorilla.png');
+    final frontCartonData =
+        await rootBundle.load('$basePath/CartonGorilla.png');
     _frontCartonBytes = frontCartonData.buffer.asUint8List();
 
+    _currentFilamentType = filamentType;
     _isInitialized = true;
   }
 
@@ -638,6 +667,7 @@ class NanoBananaService {
 
   /// Apply adjustments to the base colorized image (without carton/background),
   /// then composite 3 layers: background + adjusted template + carton.
+  /// If [cartonOverrideBytes] is provided, use it instead of the service's cached carton.
   Future<Uint8List> applyAdjustments({
     required Uint8List baseColorizedBytes,
     required double hue,        // -1.0 to 1.0 (0 = no change)
@@ -646,6 +676,7 @@ class NanoBananaService {
     required double contrast,   // -1.0 to 1.0 (0 = no change)
     required double sharpness,  // 0.0 to 1.0 (0 = no change)
     bool useWhiteBackground = true,
+    Uint8List? cartonOverrideBytes,
   }) async {
     if (!_isInitialized) {
       await initialize();
@@ -660,7 +691,7 @@ class NanoBananaService {
       'contrast': contrast,
       'sharpness': sharpness,
       'useWhiteBackground': useWhiteBackground,
-      'cartonImageBytes': _cartonImageBytes,
+      'cartonImageBytes': cartonOverrideBytes ?? _cartonImageBytes,
     });
   }
 

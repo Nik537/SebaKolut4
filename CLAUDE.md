@@ -1,5 +1,11 @@
 # Filament Colorizer
 
+## Important: Testing Policy
+
+**DO NOT run `flutter run` or launch the app.** Only the user tests this application. Use `flutter analyze` to verify code compiles without errors.
+
+---
+
 A Flutter application for extracting and analyzing colors from 3D printing filament images using Google Gemini AI.
 
 ## Project Overview

@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -702,8 +702,9 @@ class _ResultWithSliders extends ConsumerWidget {
       groupId: groupId,
       generationIndex: generationIndex,
     )));
-    // Carton overlay (not affected by color adjustments)
-    final cartonBytes = ref.watch(cartonOverlayBytesProvider);
+    // Carton overlay (not affected by color adjustments) - loads per-group filament type
+    final cartonBytesAsync = ref.watch(cartonOverlayByGroupProvider(groupId));
+    final cartonBytes = cartonBytesAsync.valueOrNull;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -726,10 +727,23 @@ class _ResultWithSliders extends ConsumerWidget {
             // Export button for this generation
             ElevatedButton.icon(
               onPressed: () async {
+                final exportController = ref.read(exportControllerProvider);
+
+                // Step 1: Pick directory FIRST (before export)
+                String? directory;
+                if (!kIsWeb) {
+                  directory = await exportController.pickExportDirectory();
+                  if (directory == null) {
+                    // User cancelled directory picker
+                    return;
+                  }
+                }
+
                 try {
-                  await ref.read(exportControllerProvider).exportSingleGeneration(
+                  await exportController.exportSingleGeneration(
                     groupId,
                     generationIndex,
+                    directory: directory,
                   );
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(

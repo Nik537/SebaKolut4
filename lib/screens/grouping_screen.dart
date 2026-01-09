@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/providers.dart';
 import '../models/models.dart';
 import '../services/image_cache_service.dart';
+import '../services/filament_type_service.dart';
 import '../widgets/log_viewer.dart';
 import 'processing_screen.dart';
 
@@ -180,15 +181,15 @@ class GroupingScreen extends ConsumerWidget {
                   child: SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: groups.isEmpty
-                          ? null
-                          : () {
+                      onPressed: ref.watch(allGroupsReadyProvider)
+                          ? () {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (context) => const ProcessingScreen(),
                                 ),
                               );
-                            },
+                            }
+                          : null,
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         backgroundColor: Theme.of(context).colorScheme.primary,
@@ -393,6 +394,9 @@ class _GroupCardState extends ConsumerState<_GroupCard> {
               ],
             ),
             const SizedBox(height: 8),
+            // Filament type dropdown
+            _buildFilamentTypeDropdown(context, ref),
+            const SizedBox(height: 8),
             // SKU input field
             TextField(
               controller: _skuController,
@@ -455,6 +459,48 @@ class _GroupCardState extends ConsumerState<_GroupCard> {
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildFilamentTypeDropdown(BuildContext context, WidgetRef ref) {
+    final filamentTypesAsync = ref.watch(availableFilamentTypesProvider);
+
+    return filamentTypesAsync.when(
+      data: (filamentTypes) => DropdownButtonFormField<String>(
+        initialValue: widget.group.filamentType,
+        isExpanded: true,
+        decoration: InputDecoration(
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          border: const OutlineInputBorder(),
+          labelText: 'Filament Type *',
+          labelStyle: const TextStyle(fontSize: 12),
+          hintText: 'Select filament type',
+          hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+          errorText: widget.group.filamentType == null ? 'Required' : null,
+          errorStyle: const TextStyle(fontSize: 10),
+        ),
+        items: filamentTypes.map((type) {
+          return DropdownMenuItem<String>(
+            value: type.id,
+            child: Text(type.displayName, style: const TextStyle(fontSize: 13)),
+          );
+        }).toList(),
+        onChanged: (value) {
+          ref.read(groupsProvider.notifier).updateFilamentType(
+                widget.group.id,
+                value,
+              );
+        },
+      ),
+      loading: () => const SizedBox(
+        height: 48,
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      ),
+      error: (err, stack) => Text(
+        'Error loading filament types: $err',
+        style: const TextStyle(color: Colors.red, fontSize: 12),
       ),
     );
   }

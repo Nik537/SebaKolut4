@@ -55,6 +55,15 @@ class GroupsNotifier extends StateNotifier<List<ImageGroup>> {
     }).toList();
   }
 
+  void updateFilamentType(String groupId, String? filamentType) {
+    state = state.map((g) {
+      if (g.id == groupId) {
+        return g.copyWith(filamentType: filamentType);
+      }
+      return g;
+    }).toList();
+  }
+
   void reset() {
     state = [];
   }
@@ -74,4 +83,11 @@ final groupImagesProvider =
     ),
   );
   return group.imageIds;
+});
+
+/// Provider to check if all groups are ready for processing
+final allGroupsReadyProvider = Provider<bool>((ref) {
+  final groups = ref.watch(groupsProvider);
+  if (groups.isEmpty) return false;
+  return groups.every((g) => g.isReadyForProcessing);
 });
