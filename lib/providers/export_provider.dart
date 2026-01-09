@@ -151,7 +151,10 @@ class ExportController {
       throw ExportCancelledException();
     }
 
-    await exportService.exportDualBackground(images: exportData);
+    await exportService.exportDualBackground(
+      images: exportData,
+      isCancelled: () => _isCancelled,
+    );
   }
 
   /// Export a single generation from a specific group
@@ -259,7 +262,10 @@ class ExportController {
       frontBytes: frontBytes,
     );
 
-    await exportService.exportDualBackground(images: [exportData]);
+    await exportService.exportDualBackground(
+      images: [exportData],
+      isCancelled: () => _isCancelled,
+    );
   }
 }
 
