@@ -90,6 +90,7 @@ class ExportController {
       exportData.add(ExportImageData(
         groupName: group.name,
         sku: group.sku,
+        filamentType: group.filamentType,
         transparentBytes: transparentBytes,
         zoomBytes: zoomBytes,
         frontBytes: frontBytes,
@@ -165,6 +166,7 @@ class ExportController {
     final exportData = ExportImageData(
       groupName: group.name,
       sku: group.sku,
+      filamentType: group.filamentType,
       transparentBytes: transparentBytes,
       zoomBytes: zoomBytes,
       frontBytes: frontBytes,
@@ -178,6 +180,7 @@ class ExportController {
 class ExportImageData {
   final String groupName;
   final String sku;
+  final String? filamentType;
   final Uint8List transparentBytes;
   final Uint8List zoomBytes;
   final Uint8List frontBytes;
@@ -185,6 +188,7 @@ class ExportImageData {
   ExportImageData({
     required this.groupName,
     required this.sku,
+    this.filamentType,
     required this.transparentBytes,
     required this.zoomBytes,
     required this.frontBytes,

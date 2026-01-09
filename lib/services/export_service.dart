@@ -85,7 +85,10 @@ class ExportService {
     if (kIsWeb) {
       // Web: Download each file individually (no folder structure)
       for (final imageData in images) {
-        final baseName = imageData.groupName.replaceAll(' ', '-');
+        // Build base name with filament type prefix
+        final filamentPart = imageData.filamentType?.replaceAll(' ', '-') ?? '';
+        final groupPart = imageData.groupName.replaceAll(' ', '-');
+        final baseName = filamentPart.isNotEmpty ? '$filamentPart-$groupPart' : groupPart;
 
         // Export transparent background version (lossless WebP with alpha, 2000x2000)
         final transparentConverted = await _prepareForExport(
@@ -133,13 +136,18 @@ class ExportService {
       }
 
       for (final imageData in images) {
-        // Create folder: "{GroupName} {SKU}"
-        final folderName = '${imageData.groupName} ${imageData.sku}'.trim();
+        // Create folder: "{FilamentType} {GroupName} {SKU}"
+        final filamentPrefix = imageData.filamentType != null
+            ? '${imageData.filamentType} '
+            : '';
+        final folderName = '$filamentPrefix${imageData.groupName} ${imageData.sku}'.trim();
         final folderPath = '$directory/$folderName';
         await Directory(folderPath).create(recursive: true);
 
-        // Generate base filename: replace spaces with "-"
-        final baseName = imageData.groupName.replaceAll(' ', '-');
+        // Build base name with filament type prefix
+        final filamentPart = imageData.filamentType?.replaceAll(' ', '-') ?? '';
+        final groupPart = imageData.groupName.replaceAll(' ', '-');
+        final baseName = filamentPart.isNotEmpty ? '$filamentPart-$groupPart' : groupPart;
 
         // Export transparent background version (lossless WebP with alpha, 2000x2000)
         final transparentConverted = await _prepareForExport(
