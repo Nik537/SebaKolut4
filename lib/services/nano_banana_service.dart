@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/services.dart' show rootBundle;
@@ -72,19 +73,18 @@ Uint8List _applyAdjustmentsIsolate(Map<String, dynamic> params) {
     throw Exception('Failed to decode base colorized image');
   }
 
-  // Apply adjustments
-  if (hue != 0) {
-    image = _adjustHueStatic(image, hue);
+  // Apply color adjustments using RGB matrix (matches preview exactly)
+  if (hue != 0 || saturation != 0 || brightness != 0 || contrast != 0) {
+    image = _applyColorMatrixStatic(
+      image,
+      hue: hue,
+      saturation: saturation,
+      brightness: brightness,
+      contrast: contrast,
+    );
   }
-  if (saturation != 0) {
-    image = _adjustSaturationStatic(image, saturation);
-  }
-  if (brightness != 0) {
-    image = _adjustBrightnessStatic(image, brightness);
-  }
-  if (contrast != 0) {
-    image = _adjustContrastStatic(image, contrast);
-  }
+
+  // Sharpness is a separate convolution operation
   if (sharpness > 0) {
     image = _adjustSharpnessStatic(image, sharpness);
   }
@@ -118,19 +118,18 @@ Uint8List _generateZoomImageIsolate(Map<String, dynamic> params) {
   // Apply colorization
   var colorizedZoomed = _applyColorTintStatic(zoomedTemplate, color);
 
-  // Apply adjustments
-  if (hue != 0) {
-    colorizedZoomed = _adjustHueStatic(colorizedZoomed, hue);
+  // Apply color adjustments using RGB matrix (matches preview exactly)
+  if (hue != 0 || saturation != 0 || brightness != 0 || contrast != 0) {
+    colorizedZoomed = _applyColorMatrixStatic(
+      colorizedZoomed,
+      hue: hue,
+      saturation: saturation,
+      brightness: brightness,
+      contrast: contrast,
+    );
   }
-  if (saturation != 0) {
-    colorizedZoomed = _adjustSaturationStatic(colorizedZoomed, saturation);
-  }
-  if (brightness != 0) {
-    colorizedZoomed = _adjustBrightnessStatic(colorizedZoomed, brightness);
-  }
-  if (contrast != 0) {
-    colorizedZoomed = _adjustContrastStatic(colorizedZoomed, contrast);
-  }
+
+  // Sharpness is a separate convolution operation
   if (sharpness > 0) {
     colorizedZoomed = _adjustSharpnessStatic(colorizedZoomed, sharpness);
   }
@@ -167,19 +166,18 @@ Uint8List _generateFrontImageIsolate(Map<String, dynamic> params) {
   // Apply colorization
   var colorizedFront = _applyColorTintStatic(frontTemplate, color);
 
-  // Apply adjustments
-  if (hue != 0) {
-    colorizedFront = _adjustHueStatic(colorizedFront, hue);
+  // Apply color adjustments using RGB matrix (matches preview exactly)
+  if (hue != 0 || saturation != 0 || brightness != 0 || contrast != 0) {
+    colorizedFront = _applyColorMatrixStatic(
+      colorizedFront,
+      hue: hue,
+      saturation: saturation,
+      brightness: brightness,
+      contrast: contrast,
+    );
   }
-  if (saturation != 0) {
-    colorizedFront = _adjustSaturationStatic(colorizedFront, saturation);
-  }
-  if (brightness != 0) {
-    colorizedFront = _adjustBrightnessStatic(colorizedFront, brightness);
-  }
-  if (contrast != 0) {
-    colorizedFront = _adjustContrastStatic(colorizedFront, contrast);
-  }
+
+  // Sharpness is a separate convolution operation
   if (sharpness > 0) {
     colorizedFront = _adjustSharpnessStatic(colorizedFront, sharpness);
   }
@@ -205,151 +203,135 @@ img.Color _parseHexColorStatic(String hex) {
   return img.ColorRgba8(r, g, b, 255);
 }
 
-List<double> _rgbToHslStatic(int r, int g, int b) {
-  final rf = r / 255.0;
-  final gf = g / 255.0;
-  final bf = b / 255.0;
+// ============================================================================
+// RGB COLOR MATRIX FUNCTIONS (matches preview exactly)
+// ============================================================================
 
-  final max = [rf, gf, bf].reduce((a, b) => a > b ? a : b);
-  final min = [rf, gf, bf].reduce((a, b) => a < b ? a : b);
-  final diff = max - min;
-
-  double h = 0;
-  double s = 0;
-  final l = (max + min) / 2;
-
-  if (diff != 0) {
-    s = l > 0.5 ? diff / (2 - max - min) : diff / (max + min);
-
-    if (max == rf) {
-      h = ((gf - bf) / diff + (gf < bf ? 6 : 0)) * 60;
-    } else if (max == gf) {
-      h = ((bf - rf) / diff + 2) * 60;
-    } else {
-      h = ((rf - gf) / diff + 4) * 60;
-    }
-  }
-
-  return [h, s, l];
-}
-
-List<int> _hslToRgbStatic(double h, double s, double l) {
-  if (s == 0) {
-    final v = (l * 255).round();
-    return [v, v, v];
-  }
-
-  final q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-  final p = 2 * l - q;
-
-  double hueToRgb(double t) {
-    var tNorm = t;
-    if (tNorm < 0) tNorm += 1;
-    if (tNorm > 1) tNorm -= 1;
-    if (tNorm < 1 / 6) return p + (q - p) * 6 * tNorm;
-    if (tNorm < 1 / 2) return q;
-    if (tNorm < 2 / 3) return p + (q - p) * (2 / 3 - tNorm) * 6;
-    return p;
-  }
-
-  final hNorm = h / 360;
-  return [
-    (hueToRgb(hNorm + 1 / 3) * 255).round().clamp(0, 255),
-    (hueToRgb(hNorm) * 255).round().clamp(0, 255),
-    (hueToRgb(hNorm - 1 / 3) * 255).round().clamp(0, 255),
+/// Build a 5x4 color matrix for image adjustments.
+/// This is the same algorithm used in the preview (processing_screen.dart).
+List<double> _buildColorMatrixStatic({
+  double hue = 0.0,
+  double saturation = 0.0,
+  double brightness = 0.0,
+  double contrast = 0.0,
+}) {
+  // Start with identity matrix
+  // Format: [R, G, B, A, offset] for each of R, G, B, A output channels
+  final matrix = <double>[
+    1, 0, 0, 0, 0, // R
+    0, 1, 0, 0, 0, // G
+    0, 0, 1, 0, 0, // B
+    0, 0, 0, 1, 0, // A
   ];
-}
 
-img.Image _adjustHueStatic(img.Image source, double hueShift) {
-  final result = img.Image.from(source);
-  final hueDegrees = hueShift * 180;
+  // Apply brightness (add to offset, scale by 255)
+  final b = brightness * 255;
+  matrix[4] += b;
+  matrix[9] += b;
+  matrix[14] += b;
 
-  for (int y = 0; y < result.height; y++) {
-    for (int x = 0; x < result.width; x++) {
-      final pixel = result.getPixel(x, y);
-      final r = pixel.r.toInt();
-      final g = pixel.g.toInt();
-      final b = pixel.b.toInt();
-      final a = pixel.a.toInt();
+  // Apply contrast (scale around 0.5)
+  final c = 1.0 + contrast;
+  final t = (1.0 - c) * 127.5;
+  matrix[0] *= c;
+  matrix[6] *= c;
+  matrix[12] *= c;
+  matrix[4] += t;
+  matrix[9] += t;
+  matrix[14] += t;
 
-      final hsl = _rgbToHslStatic(r, g, b);
-      hsl[0] = (hsl[0] + hueDegrees) % 360;
-      if (hsl[0] < 0) hsl[0] += 360;
+  // Apply saturation
+  // Blend towards grayscale using luminance weights
+  const lr = 0.2126;
+  const lg = 0.7152;
+  const lb = 0.0722;
+  final s = 1.0 + saturation;
+  final sr = (1 - s) * lr;
+  final sg = (1 - s) * lg;
+  final sb = (1 - s) * lb;
 
-      final rgb = _hslToRgbStatic(hsl[0], hsl[1], hsl[2]);
-      result.setPixel(x, y, img.ColorRgba8(rgb[0], rgb[1], rgb[2], a));
-    }
+  final m0 = matrix[0], m1 = matrix[1], m2 = matrix[2];
+  final m5 = matrix[5], m6 = matrix[6], m7 = matrix[7];
+  final m10 = matrix[10], m11 = matrix[11], m12 = matrix[12];
+
+  matrix[0] = m0 * (sr + s) + m1 * sr + m2 * sr;
+  matrix[1] = m0 * sg + m1 * (sg + s) + m2 * sg;
+  matrix[2] = m0 * sb + m1 * sb + m2 * (sb + s);
+
+  matrix[5] = m5 * (sr + s) + m6 * sr + m7 * sr;
+  matrix[6] = m5 * sg + m6 * (sg + s) + m7 * sg;
+  matrix[7] = m5 * sb + m6 * sb + m7 * (sb + s);
+
+  matrix[10] = m10 * (sr + s) + m11 * sr + m12 * sr;
+  matrix[11] = m10 * sg + m11 * (sg + s) + m12 * sg;
+  matrix[12] = m10 * sb + m11 * sb + m12 * (sb + s);
+
+  // Apply hue rotation
+  if (hue != 0.0) {
+    final angle = hue * math.pi; // Convert to radians
+    final cosA = math.cos(angle);
+    final sinA = math.sin(angle);
+
+    // Hue rotation matrix in RGB space
+    final h00 = 0.213 + cosA * 0.787 - sinA * 0.213;
+    final h01 = 0.715 - cosA * 0.715 - sinA * 0.715;
+    final h02 = 0.072 - cosA * 0.072 + sinA * 0.928;
+    final h10 = 0.213 - cosA * 0.213 + sinA * 0.143;
+    final h11 = 0.715 + cosA * 0.285 + sinA * 0.140;
+    final h12 = 0.072 - cosA * 0.072 - sinA * 0.283;
+    final h20 = 0.213 - cosA * 0.213 - sinA * 0.787;
+    final h21 = 0.715 - cosA * 0.715 + sinA * 0.715;
+    final h22 = 0.072 + cosA * 0.928 + sinA * 0.072;
+
+    final r0 = matrix[0], r1 = matrix[1], r2 = matrix[2];
+    final g0 = matrix[5], g1 = matrix[6], g2 = matrix[7];
+    final b0 = matrix[10], b1 = matrix[11], b2 = matrix[12];
+
+    matrix[0] = r0 * h00 + r1 * h10 + r2 * h20;
+    matrix[1] = r0 * h01 + r1 * h11 + r2 * h21;
+    matrix[2] = r0 * h02 + r1 * h12 + r2 * h22;
+
+    matrix[5] = g0 * h00 + g1 * h10 + g2 * h20;
+    matrix[6] = g0 * h01 + g1 * h11 + g2 * h21;
+    matrix[7] = g0 * h02 + g1 * h12 + g2 * h22;
+
+    matrix[10] = b0 * h00 + b1 * h10 + b2 * h20;
+    matrix[11] = b0 * h01 + b1 * h11 + b2 * h21;
+    matrix[12] = b0 * h02 + b1 * h12 + b2 * h22;
   }
-  return result;
+
+  return matrix;
 }
 
-img.Image _adjustSaturationStatic(img.Image source, double saturationShift) {
+/// Apply color matrix to image (matches preview exactly).
+/// This uses the same RGB matrix algorithm as Flutter's ColorFilter.matrix().
+img.Image _applyColorMatrixStatic(
+  img.Image source, {
+  double hue = 0.0,
+  double saturation = 0.0,
+  double brightness = 0.0,
+  double contrast = 0.0,
+}) {
   final result = img.Image.from(source);
+  final matrix = _buildColorMatrixStatic(
+    hue: hue,
+    saturation: saturation,
+    brightness: brightness,
+    contrast: contrast,
+  );
 
   for (int y = 0; y < result.height; y++) {
     for (int x = 0; x < result.width; x++) {
       final pixel = result.getPixel(x, y);
-      final r = pixel.r.toInt();
-      final g = pixel.g.toInt();
-      final b = pixel.b.toInt();
+      final r = pixel.r.toDouble();
+      final g = pixel.g.toDouble();
+      final b = pixel.b.toDouble();
       final a = pixel.a.toInt();
 
-      final hsl = _rgbToHslStatic(r, g, b);
-      if (saturationShift > 0) {
-        hsl[1] = hsl[1] + (1 - hsl[1]) * saturationShift;
-      } else {
-        hsl[1] = hsl[1] * (1 + saturationShift);
-      }
-      hsl[1] = hsl[1].clamp(0.0, 1.0);
-
-      final rgb = _hslToRgbStatic(hsl[0], hsl[1], hsl[2]);
-      result.setPixel(x, y, img.ColorRgba8(rgb[0], rgb[1], rgb[2], a));
-    }
-  }
-  return result;
-}
-
-img.Image _adjustBrightnessStatic(img.Image source, double brightnessShift) {
-  final result = img.Image.from(source);
-
-  for (int y = 0; y < result.height; y++) {
-    for (int x = 0; x < result.width; x++) {
-      final pixel = result.getPixel(x, y);
-      final r = pixel.r.toInt();
-      final g = pixel.g.toInt();
-      final b = pixel.b.toInt();
-      final a = pixel.a.toInt();
-
-      final hsl = _rgbToHslStatic(r, g, b);
-      if (brightnessShift > 0) {
-        hsl[2] = hsl[2] + (1.0 - hsl[2]) * brightnessShift;
-      } else {
-        hsl[2] = hsl[2] * (1.0 + brightnessShift);
-      }
-      hsl[2] = hsl[2].clamp(0.0, 1.0);
-
-      final rgb = _hslToRgbStatic(hsl[0], hsl[1], hsl[2]);
-      result.setPixel(x, y, img.ColorRgba8(rgb[0], rgb[1], rgb[2], a));
-    }
-  }
-  return result;
-}
-
-img.Image _adjustContrastStatic(img.Image source, double contrastShift) {
-  final result = img.Image.from(source);
-  final factor = 1.0 + contrastShift;
-
-  for (int y = 0; y < result.height; y++) {
-    for (int x = 0; x < result.width; x++) {
-      final pixel = result.getPixel(x, y);
-      final r = pixel.r.toInt();
-      final g = pixel.g.toInt();
-      final b = pixel.b.toInt();
-      final a = pixel.a.toInt();
-
-      final newR = ((r - 128) * factor + 128).round().clamp(0, 255);
-      final newG = ((g - 128) * factor + 128).round().clamp(0, 255);
-      final newB = ((b - 128) * factor + 128).round().clamp(0, 255);
+      // Apply 5x4 color matrix (same as Flutter ColorFilter.matrix)
+      final newR = (matrix[0] * r + matrix[1] * g + matrix[2] * b + matrix[4]).round().clamp(0, 255);
+      final newG = (matrix[5] * r + matrix[6] * g + matrix[7] * b + matrix[9]).round().clamp(0, 255);
+      final newB = (matrix[10] * r + matrix[11] * g + matrix[12] * b + matrix[14]).round().clamp(0, 255);
 
       result.setPixel(x, y, img.ColorRgba8(newR, newG, newB, a));
     }
