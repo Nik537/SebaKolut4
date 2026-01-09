@@ -1,0 +1,10 @@
+{
+  "discovered_files": {
+    "lib/models/app_state_snapshot.dart": {
+      "description": "AppStateSnapshot model captures all undoable state for undo/redo system. Uses deep equality (listEquals/mapEquals) for comparing snapshots. Imports ImageAdjustments from processing_provider.dart.",
+      "category": "model",
+      "discovered_at": "2026-01-09T08:33:03.031215+00:00"
+    }
+  },
+  "last_updated": "2026-01-09T08:33:03.031230+00:00"
+}

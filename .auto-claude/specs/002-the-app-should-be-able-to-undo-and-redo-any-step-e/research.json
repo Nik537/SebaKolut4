@@ -1,0 +1,284 @@
+{
+  "integrations_researched": [
+    {
+      "name": "flutter_riverpod",
+      "type": "library",
+      "status": "already_installed",
+      "verified_package": {
+        "name": "flutter_riverpod",
+        "install_command": "Already in pubspec.yaml: flutter_riverpod: ^2.6.1",
+        "version": "^2.6.1",
+        "verified": true
+      },
+      "api_patterns": {
+        "imports": [
+          "import 'package:flutter_riverpod/flutter_riverpod.dart';"
+        ],
+        "initialization": "StateNotifierProvider<MyNotifier, MyState>((ref) => MyNotifier())",
+        "key_functions": [
+          "StateNotifier<T> - base class for state management",
+          "state = newState - updates state and notifies listeners",
+          "ref.read(provider) - read provider value",
+          "ref.watch(provider) - watch provider and rebuild on changes"
+        ],
+        "verified_against": "pub.dev documentation, Riverpod official docs"
+      },
+      "undo_redo_approach": {
+        "recommended_pattern": "Custom StateNotifier with history stack",
+        "description": "Riverpod doesn't have built-in undo/redo. Implement by maintaining a history list of previous states within a StateNotifier and adding undo()/redo() methods.",
+        "implementation_example": {
+          "history_stack": "List<AppState> _history = []",
+          "future_stack": "List<AppState> _future = []",
+          "undo_method": "Move current state to _future, pop from _history",
+          "redo_method": "Move current state to _history, pop from _future"
+        }
+      },
+      "gotchas": [
+        "StateNotifier is now legacy in Riverpod 3.0, but still supported",
+        "Project uses StateNotifier pattern - can continue using it or migrate to Notifier",
+        "Must ensure immutable state objects for proper undo/redo",
+        "Large state objects may consume significant memory in history stack"
+      ],
+      "research_sources": [
+        "https://pub.dev/packages/flutter_riverpod",
+        "https://riverpod.dev/docs/migration/from_state_notifier",
+        "https://codewithandrea.com/articles/flutter-state-management-riverpod/"
+      ]
+    },
+    {
+      "name": "undo",
+      "type": "library",
+      "status": "recommended_for_integration",
+      "verified_package": {
+        "name": "undo",
+        "install_command": "flutter pub add undo",
+        "version": "^1.5.0",
+        "verified": true,
+        "publisher": "rodydavis.com (verified)",
+        "license": "MIT"
+      },
+      "api_patterns": {
+        "imports": [
+          "import 'package:undo/undo.dart';"
+        ],
+        "initialization": "final changes = ChangeStack();",
+        "key_classes": [
+          "ChangeStack - Stores and manages changes with undo/redo",
+          "Change - Represents a single undoable action with execute and revert callbacks",
+          "SimpleStack<T> - Generic state container with built-in undo/redo"
+        ],
+        "key_functions": [
+          "changes.add(Change(oldValue, execute, undo)) - Add a new undoable change",
+          "changes.undo() - Undo the last change",
+          "changes.redo() - Redo previously undone change",
+          "changes.canUndo - Boolean property for UI state",
+          "changes.canRedo - Boolean property for UI state",
+          "changes.clear() - Clear all history"
+        ],
+        "verified_against": "pub.dev/packages/undo documentation"
+      },
+      "configuration": {
+        "env_vars": [],
+        "config_files": [],
+        "dependencies": []
+      },
+      "usage_example": {
+        "code": "changes.add(Change(oldValue, () => doAction(), (old) => undoAction(old)));",
+        "description": "Create a Change with initial value, execute function, and undo function"
+      },
+      "gotchas": [
+        "When adding a change, it automatically calls execute() - be aware if action already executed",
+        "Need to pass the old value to properly revert state",
+        "For complex state, consider using SimpleStack with state snapshots"
+      ],
+      "research_sources": [
+        "https://pub.dev/packages/undo",
+        "https://github.com/rodydavis/undo"
+      ]
+    },
+    {
+      "name": "async (CancelableOperation)",
+      "type": "library",
+      "status": "recommended_for_export_cancellation",
+      "verified_package": {
+        "name": "async",
+        "install_command": "flutter pub add async",
+        "version": "^2.11.0",
+        "verified": true,
+        "publisher": "dart.dev (official Dart team)"
+      },
+      "api_patterns": {
+        "imports": [
+          "import 'package:async/async.dart';"
+        ],
+        "key_classes": [
+          "CancelableOperation<T> - An async operation that can be cancelled",
+          "CancelableCompleter<T> - Creates a cancelable operation with manual control"
+        ],
+        "key_functions": [
+          "CancelableOperation.fromFuture(future, onCancel: callback) - Wrap a Future",
+          "operation.cancel() - Cancel the operation",
+          "operation.value - The Future result (won't complete if cancelled)",
+          "operation.isCanceled - Check if operation was cancelled",
+          "operation.isCompleted - Check if operation completed",
+          "operation.valueOrCancellation(defaultValue) - Get value or default if cancelled"
+        ],
+        "verified_against": "api.flutter.dev documentation"
+      },
+      "usage_example": {
+        "code": "final operation = CancelableOperation.fromFuture(exportAll(), onCancel: () => cleanup());\n// Later: operation.cancel();",
+        "description": "Wrap async export operation to make it cancellable"
+      },
+      "limitations": [
+        "Does NOT truly stop the underlying Future - only cancels listening for result",
+        "If export writes files, cancellation won't undo partial writes",
+        "Need additional logic to check isCanceled during long operations"
+      ],
+      "gotchas": [
+        "Cancellation only prevents completion callbacks from firing",
+        "For file operations, should implement periodic cancellation checks",
+        "Consider cleanup of partial files on cancellation"
+      ],
+      "research_sources": [
+        "https://api.flutter.dev/flutter/package-async_async/CancelableOperation-class.html",
+        "https://pub.dev/packages/async"
+      ]
+    },
+    {
+      "name": "Flutter UndoHistory Widget",
+      "type": "flutter_built_in",
+      "status": "not_recommended",
+      "verified_package": {
+        "name": "flutter/widgets.dart (built-in)",
+        "install_command": "No installation needed - part of Flutter SDK",
+        "verified": true
+      },
+      "api_patterns": {
+        "imports": [
+          "import 'package:flutter/widgets.dart';"
+        ],
+        "key_classes": [
+          "UndoHistory<T> - Widget for undo/redo with keyboard shortcuts",
+          "UndoHistoryController - Controller for UndoHistory state"
+        ],
+        "key_properties": [
+          "value - ValueNotifier to track",
+          "focusNode - Required for keyboard shortcut handling",
+          "onTriggered - Callback when undo/redo occurs",
+          "shouldChangeUndoStack - Filter function for what changes to track"
+        ]
+      },
+      "limitations": [
+        "Designed primarily for text input fields (TextField)",
+        "Requires focus management via FocusNode",
+        "Not suitable for application-wide state undo/redo",
+        "Better for localized widget state than global app state"
+      ],
+      "recommendation": "Not recommended for this use case. Use custom undo/redo with Riverpod or 'undo' package instead.",
+      "research_sources": [
+        "https://api.flutter.dev/flutter/widgets/UndoHistory-class.html",
+        "https://api.flutter.dev/flutter/widgets/UndoHistoryController-class.html"
+      ]
+    },
+    {
+      "name": "flutter_command_pattern",
+      "type": "library",
+      "status": "alternative_option",
+      "verified_package": {
+        "name": "flutter_command_pattern",
+        "install_command": "flutter pub add flutter_command_pattern",
+        "version": "^1.0.6",
+        "verified": true,
+        "license": "MIT"
+      },
+      "api_patterns": {
+        "imports": [
+          "import 'package:flutter_command_pattern/flutter_command_pattern.dart';"
+        ],
+        "key_classes": [
+          "Command - For operations without parameters",
+          "CommandWithParams<T> - For parameterized operations"
+        ],
+        "key_functions": [
+          "command.execute() - Execute the command",
+          "command.observe(context, onLoading, onSuccess, onFailure) - Observe command lifecycle"
+        ]
+      },
+      "recommendation": "Alternative for command pattern but 'undo' package is more specifically designed for undo/redo functionality",
+      "research_sources": [
+        "https://pub.dev/packages/flutter_command_pattern"
+      ]
+    }
+  ],
+  "recommended_approach": {
+    "summary": "Implement undo/redo using custom Riverpod StateNotifier with history stacks, and use async package's CancelableOperation for export cancellation",
+    "packages_to_add": [
+      {
+        "name": "undo",
+        "version": "^1.5.0",
+        "purpose": "Provides ChangeStack/SimpleStack for tracking undoable actions"
+      },
+      {
+        "name": "async",
+        "version": "^2.11.0",
+        "purpose": "Provides CancelableOperation for making export cancellable"
+      }
+    ],
+    "implementation_strategy": {
+      "undo_redo": {
+        "approach": "Create an UndoRedoStateNotifier that wraps app state and maintains history",
+        "key_points": [
+          "Track state changes in a history stack (List<AppState>)",
+          "Maintain a future stack for redo functionality",
+          "Expose canUndo/canRedo boolean getters",
+          "Mark certain operations (like export) as non-undoable",
+          "Consider memory limits on history size"
+        ]
+      },
+      "export_cancellation": {
+        "approach": "Wrap export Future with CancelableOperation",
+        "key_points": [
+          "Create CancelableOperation.fromFuture(exportFuture)",
+          "Store operation reference in provider for cancel access",
+          "Add periodic cancellation checks in long-running export loops",
+          "Implement cleanup logic for partial exports on cancellation"
+        ]
+      }
+    }
+  },
+  "existing_codebase_analysis": {
+    "state_management": "Riverpod with StateNotifier pattern",
+    "providers_to_modify": [
+      "images_provider.dart - ImportedImagesNotifier",
+      "groups_provider.dart - GroupsNotifier",
+      "processing_provider.dart - ColorizedImagesNotifier, ImageAdjustmentsNotifier",
+      "export_provider.dart - ExportController"
+    ],
+    "operations_needing_undo": [
+      "Import images (pickAndAddImages, addDroppedFiles)",
+      "Remove image (removeImage)",
+      "Toggle selection (toggleSelection)",
+      "Create group (createGroupFromSelection)",
+      "Remove group (removeGroup)",
+      "Rename group (renameGroup)",
+      "Update SKU (updateSku)",
+      "Process groups (processAllGroups)",
+      "Recolorize generation (recolorizeGeneration)",
+      "Adjust image settings (hue, saturation, brightness, contrast, sharpness)"
+    ],
+    "operations_excluded_from_undo": [
+      "Export operations (exportAll, exportSingleGeneration)"
+    ]
+  },
+  "unverified_claims": [],
+  "recommendations": [
+    "Use the 'undo' package's ChangeStack or implement custom history in StateNotifier - both approaches are viable",
+    "Consider implementing a centralized UndoRedoProvider that coordinates across multiple state notifiers",
+    "Add 'async' package for CancelableOperation to implement export cancellation",
+    "Set a reasonable limit on undo history (e.g., 50 steps) to manage memory",
+    "Store only state diffs or use immutable state snapshots for efficiency",
+    "For image byte data, consider storing references rather than copying full bytes in history"
+  ],
+  "context7_libraries_used": [],
+  "created_at": "2025-01-09T00:00:00Z"
+}
