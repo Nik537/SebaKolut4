@@ -1,0 +1,25 @@
+{
+  "discovered_files": {
+    "lib/providers/export_provider.dart": {
+      "description": "Added exportDirectoryProvider StateProvider<String?> to store selected export directory path for use during export operations",
+      "category": "provider",
+      "discovered_at": "2026-01-09T08:24:44.614398+00:00"
+    },
+    "lib/providers/groups_provider.dart": {
+      "description": "GroupsNotifier now tracks last created group with _lastCreatedGroupId field and provides undoLastGroup() method that removes the group from state and calls markAsUngrouped() on the images provider",
+      "category": "state-management",
+      "discovered_at": "2026-01-09T08:27:04.461856+00:00"
+    },
+    "lib/providers/images_provider.dart": {
+      "description": "ImportedImagesNotifier now has index-based selection methods (selectImageAt, deselectImageAt) and markAsUngrouped for undo functionality. These enable keyboard-driven selection workflow in GroupingScreen.",
+      "category": "provider_methods",
+      "discovered_at": "2026-01-09T08:28:40.379582+00:00"
+    },
+    "lib/screens/grouping_screen.dart": {
+      "description": "GroupingScreen converted to ConsumerStatefulWidget with _cursorIndex (int) for keyboard navigation cursor position and _hasPromptedForDirectory (bool) for export dialog tracking. Includes cursor index clamping in build() method when ungrouped images list changes.",
+      "category": "ui-state",
+      "discovered_at": "2026-01-09T08:30:24.504453+00:00"
+    }
+  },
+  "last_updated": "2026-01-09T08:30:24.504461+00:00"
+}

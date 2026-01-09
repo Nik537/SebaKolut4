@@ -28,7 +28,9 @@
             "expected": "No issues found"
           },
           "implementation_notes": "Add: final exportDirectoryProvider = StateProvider<String?>((ref) => null); This simple StateProvider stores the selected directory path (null for web or if user cancels).",
-          "status": "pending"
+          "status": "completed",
+          "notes": "Added exportDirectoryProvider StateProvider<String?> to export_provider.dart. Provider stores selected export directory path with initial value of null. Follows existing Riverpod patterns in the codebase.",
+          "updated_at": "2026-01-09T08:24:38.915638+00:00"
         },
         {
           "id": "subtask-1-2",
@@ -47,7 +49,9 @@
             "expected": "No issues found"
           },
           "implementation_notes": "Add _lastCreatedGroupId field to track last group. In createGroupFromSelection(), store group.id before adding to state. Add undoLastGroup() method that: 1) finds group by _lastCreatedGroupId, 2) gets its imageIds, 3) calls markAsUngrouped on those IDs via _ref, 4) removes group from state, 5) clears _lastCreatedGroupId.",
-          "status": "pending"
+          "status": "completed",
+          "notes": "Added _lastCreatedGroupId field, lastCreatedGroupId getter, updated createGroupFromSelection() to track group ID, added undoLastGroup() method that removes group and calls markAsUngrouped, and updated reset() to clear tracking. Note: markAsUngrouped() method will be added in subtask-1-3.",
+          "updated_at": "2026-01-09T08:26:58.915709+00:00"
         },
         {
           "id": "subtask-1-3",
@@ -66,7 +70,9 @@
             "expected": "No issues found"
           },
           "implementation_notes": "Add three methods: 1) selectImageAt(int index, List<ImportedImage> ungrouped) - gets image at index from ungrouped list, sets isSelected=true using copyWith; 2) deselectImageAt(int index, List<ImportedImage> ungrouped) - same but isSelected=false; 3) markAsUngrouped(List<String> ids) - for each id, set isGrouped=false. All use immutable state updates with map().",
-          "status": "pending"
+          "status": "completed",
+          "notes": "Added three methods to ImportedImagesNotifier: selectImageAt(int index), deselectImageAt(int index), and markAsUngrouped(List<String> imageIds). All methods follow existing patterns with immutable state updates and proper bounds checking.",
+          "updated_at": "2026-01-09T08:28:34.719037+00:00"
         }
       ]
     },
@@ -97,7 +103,9 @@
             "expected": "No issues found"
           },
           "implementation_notes": "Change class declaration to: class GroupingScreen extends ConsumerStatefulWidget. Create _GroupingScreenState extends ConsumerState<GroupingScreen>. Add int _cursorIndex = 0 as local state. Move build() logic to state class. Add _hasPromptedForDirectory bool to track if dialog shown.",
-          "status": "pending"
+          "status": "completed",
+          "notes": "Converted GroupingScreen from ConsumerWidget to ConsumerStatefulWidget. Added _cursorIndex (int) for cursor position tracking, _hasPromptedForDirectory (bool) for export dialog tracking. Added cursor index clamping logic when ungrouped images list changes. Follows pattern from import_screen.dart.",
+          "updated_at": "2026-01-09T08:30:14.954181+00:00"
         },
         {
           "id": "subtask-2-2",
@@ -116,7 +124,9 @@
             "expected": "No issues found"
           },
           "implementation_notes": "In initState(), add WidgetsBinding.instance.addPostFrameCallback() to show dialog after build. Check if kIsWeb - skip on web. Call ExportService.getExportDirectory() and store result in exportDirectoryProvider. Handle null result (user cancelled) gracefully - allow continuing without directory.",
-          "status": "pending"
+          "status": "completed",
+          "notes": "Added export destination dialog that shows when entering GroupingScreen (desktop/mobile only). Implementation includes: initState() with addPostFrameCallback() to show dialog after first build, _promptForExportDirectory() method that skips on web (kIsWeb), only prompts once, checks for existing directory, uses FilePicker.platform.getDirectoryPath(), and stores result in exportDirectoryProvider. Handles user cancellation gracefully.",
+          "updated_at": "2026-01-09T08:32:20.603889+00:00"
         },
         {
           "id": "subtask-2-3",
@@ -319,5 +329,6 @@
   "qa_signoff": null,
   "status": "in_progress",
   "planStatus": "in_progress",
-  "updated_at": "2026-01-09T08:23:13.645Z"
+  "updated_at": "2026-01-09T08:23:13.645Z",
+  "last_updated": "2026-01-09T08:32:20.603902+00:00"
 }

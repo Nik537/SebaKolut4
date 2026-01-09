@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import '../providers/providers.dart';
@@ -53,6 +54,65 @@ class _GroupingScreenState extends ConsumerState<GroupingScreen> {
     // they will be prompted again at export time
   }
 
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    // Only handle key down events
+    if (event is! KeyDownEvent) {
+      return KeyEventResult.ignored;
+    }
+
+    final ungroupedImages = ref.read(ungroupedImagesProvider);
+
+    // Don't handle keyboard shortcuts when list is empty
+    if (ungroupedImages.isEmpty) {
+      return KeyEventResult.ignored;
+    }
+
+    final isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
+
+    if (event.logicalKey == LogicalKeyboardKey.space) {
+      if (isShiftPressed) {
+        // Shift+Space: deselect current photo and move cursor backward
+        ref.read(importedImagesProvider.notifier).deselectImageAt(_cursorIndex);
+        setState(() {
+          _cursorIndex = (_cursorIndex - 1).clamp(0, ungroupedImages.length - 1);
+        });
+      } else {
+        // Space: select current photo and advance cursor
+        ref.read(importedImagesProvider.notifier).selectImageAt(_cursorIndex);
+        setState(() {
+          _cursorIndex = (_cursorIndex + 1).clamp(0, ungroupedImages.length - 1);
+        });
+      }
+      return KeyEventResult.handled;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.enter) {
+      if (isShiftPressed) {
+        // Shift+Enter: undo the last group creation
+        ref.read(groupsProvider.notifier).undoLastGroup();
+        // Reset cursor to 0 after undo (images return to list)
+        setState(() {
+          _cursorIndex = 0;
+        });
+      } else {
+        // Enter: create group from selected photos
+        ref.read(groupsProvider.notifier).createGroupFromSelection();
+        // Clamp cursor after grouping (list may have shrunk)
+        final remainingImages = ref.read(ungroupedImagesProvider);
+        setState(() {
+          if (remainingImages.isEmpty) {
+            _cursorIndex = 0;
+          } else {
+            _cursorIndex = _cursorIndex.clamp(0, remainingImages.length - 1);
+          }
+        });
+      }
+      return KeyEventResult.handled;
+    }
+
+    return KeyEventResult.ignored;
+  }
+
   @override
   Widget build(BuildContext context) {
     final ungroupedImages = ref.watch(ungroupedImagesProvider);
@@ -73,11 +133,14 @@ class _GroupingScreenState extends ConsumerState<GroupingScreen> {
           LogViewerButton(),
         ],
       ),
-      body: Row(
-        children: [
-          // Main content - image selection
-          Expanded(
-            flex: 3,
+      body: Focus(
+        autofocus: true,
+        onKeyEvent: _handleKeyEvent,
+        child: Row(
+          children: [
+            // Main content - image selection
+            Expanded(
+              flex: 3,
             child: Column(
               children: [
                 // Selection info bar
@@ -253,7 +316,8 @@ class _GroupingScreenState extends ConsumerState<GroupingScreen> {
               ],
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
